@@ -81,91 +81,19 @@ export class FlowEdge extends LitElement {
   @property({ type: String }) markerStartDef?: string;
   @property({ type: String }) markerEndDef?: string;
 
-  private getViewportTransform(): { x: number; y: number; zoom: number } {
-    const root = this.getRootNode() as ShadowRoot;
-    const viewport = root.querySelector('.flow-viewport') as HTMLElement | null;
-    if (!viewport) return { x: 0, y: 0, zoom: 1 };
-    const transform = getComputedStyle(viewport).transform || viewport.style.transform || '';
-    // transform is typically matrix(a, b, c, d, e, f) where a=d=scale, e=x, f=y for simple translate/scale
-    if (transform.startsWith('matrix(')) {
-      const values = transform
-        .replace('matrix(', '')
-        .replace(')', '')
-        .split(',')
-        .map((v) => parseFloat(v.trim()));
-      const [a, , , d, e, f] = values;
-      const zoom = Number.isFinite(a) ? a : 1;
-      const x = Number.isFinite(e) ? e : 0;
-      const y = Number.isFinite(f) ? f : 0;
-      return { x, y, zoom };
-    }
-    // Fallback for translate(...) scale(...)
-    const translateMatch = transform.match(/translate\(([^)]+)\)/);
-    const scaleMatch = transform.match(/scale\(([^)]+)\)/);
-    const x = translateMatch ? parseFloat(translateMatch[1].split(',')[0]) : 0;
-    const y = translateMatch ? parseFloat(translateMatch[1].split(',')[1]) || 0 : 0;
-    const zoom = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
-    return { x, y, zoom };
-  }
-
-  private getNodeCenterAndSides(id: string): {
-    left: { x: number; y: number };
-    right: { x: number; y: number };
-    width: number;
-    height: number;
-  } | null {
-    const root = this.getRootNode() as ShadowRoot;
-    const el = root.querySelector(`flow-node[id="${CSS.escape(id)}"]`) as HTMLElement | null;
-    const viewport = root.querySelector('.flow-viewport') as HTMLElement | null;
-    if (!el || !viewport) return null;
-
-    const vp = this.getViewportTransform();
-    const elRect = el.getBoundingClientRect();
-    const vpRect = viewport.getBoundingClientRect();
-
-    const width = elRect.width / vp.zoom;
-    const height = elRect.height / vp.zoom;
-    const leftX = (elRect.left - vpRect.left - vp.x) / vp.zoom;
-    const topY = (elRect.top - vpRect.top - vp.y) / vp.zoom;
-    const centerY = topY + height / 2;
-
-    return {
-      left: { x: leftX, y: centerY },
-      right: { x: leftX + width, y: centerY },
-      width,
-      height,
-    };
-  }
-
   render() {
     if (!this.sourceNode || !this.targetNode) {
       return html``;
     }
-    // Prefer DOM-based geometry to avoid style-origin offsets; fallback to state sizes
-    const sourceGeom = this.getNodeCenterAndSides(this.source);
-    const targetGeom = this.getNodeCenterAndSides(this.target);
-
-    let sourceX: number;
-    let sourceY: number;
-    let targetX: number;
-    let targetY: number;
-
-    if (sourceGeom && targetGeom) {
-      sourceX = sourceGeom.right.x;
-      sourceY = sourceGeom.right.y;
-      targetX = targetGeom.left.x;
-      targetY = targetGeom.left.y;
-    } else {
-      // Fallback to state-based measurement
-      const sourceWidth = this.sourceNode.measured?.width || this.sourceNode.width || 150;
-      const sourceHeight = this.sourceNode.measured?.height || this.sourceNode.height || 50;
-      const targetWidth = this.targetNode.measured?.width || this.targetNode.width || 150;
-      const targetHeight = this.targetNode.measured?.height || this.targetNode.height || 50;
-      sourceX = this.sourceNode.position.x + sourceWidth;
-      sourceY = this.sourceNode.position.y + sourceHeight / 2;
-      targetX = this.targetNode.position.x;
-      targetY = this.targetNode.position.y + targetHeight / 2;
-    }
+    // Compute in canvas coordinates using node positions and widths/heights
+    const sourceWidth = this.sourceNode.measured?.width || this.sourceNode.width || 150;
+    const sourceHeight = this.sourceNode.measured?.height || this.sourceNode.height || 50;
+    const targetWidth = this.targetNode.measured?.width || this.targetNode.width || 150;
+    const targetHeight = this.targetNode.measured?.height || this.targetNode.height || 50;
+    const sourceX = this.sourceNode.position.x + sourceWidth;
+    const sourceY = this.sourceNode.position.y + sourceHeight / 2;
+    const targetX = this.targetNode.position.x;
+    const targetY = this.targetNode.position.y + targetHeight / 2;
 
     // Get bezier path
     const [path, labelX, labelY] = getBezierPath({

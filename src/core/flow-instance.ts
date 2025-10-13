@@ -4,6 +4,7 @@
  */
 
 import { XYPanZoom } from '@xyflow/system';
+import type { PanOnScrollMode, Transform } from '@xyflow/system';
 import type { Node, Edge, FlowOptions, FlowState, InternalNode, Viewport } from './types';
 
 export class FlowInstance {
@@ -46,8 +47,9 @@ export class FlowInstance {
       paneClickDistance: 0,
       translateExtent: [[-Infinity, -Infinity], [Infinity, Infinity]],
       viewport: this.state.viewport,
-      onDraggingChange: () => {
-        // No-op for now; hook available if we need dragging state
+      onDraggingChange: (isDragging: boolean) => {
+        // Toggle panning cursor
+        this.container?.classList.toggle('panning', isDragging);
       },
       onPanZoom: (_event, viewport) => {
         this.state.viewport = viewport;
@@ -59,6 +61,26 @@ export class FlowInstance {
       onPanZoomEnd: (_event, _viewport) => {
         // Handle pan/zoom end
       }
+    });
+
+    // Enable panning/zooming interactions
+    this.panZoomInstance.update({
+      noWheelClassName: 'nowheel',
+      noPanClassName: 'nopan',
+      onPaneContextMenu: undefined,
+      preventScrolling: true,
+      panOnScroll: true,
+      panOnDrag: true,
+      panOnScrollMode: 'free' as unknown as PanOnScrollMode,
+      panOnScrollSpeed: 0.8,
+      userSelectionActive: false,
+      zoomOnPinch: true,
+      zoomOnScroll: true,
+      zoomOnDoubleClick: true,
+      zoomActivationKeyPressed: false,
+      lib: 'lit-flow',
+      onTransformChange: (_t: Transform) => {},
+      connectionInProgress: false,
     });
 
     this.notifySubscribers();

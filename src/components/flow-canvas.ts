@@ -172,38 +172,57 @@ export class FlowCanvas extends LitElement {
     return { left: { x: x, y: cy }, right: { x: x + w, y: cy } };
   }
 
-  private computeLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
-    const sg = this.getNodeGeom(edge.source);
-    const tg = this.getNodeGeom(edge.target);
-    if (!sg || !tg) return null;
+  private computeLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
+    const sourceNode = this.nodes.find(n => n.id === edge.source);
+    const targetNode = this.nodes.find(n => n.id === edge.target);
+    if (!sourceNode || !targetNode) return null;
+    
+    const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+    const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+    const targetWidth = targetNode.measured?.width || targetNode.width || 150;
+    const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+    
+    const sourceX = sourceNode.position.x + sourceWidth;
+    const sourceY = sourceNode.position.y + sourceHeight / 2;
+    const targetX = targetNode.position.x;
+    const targetY = targetNode.position.y + targetHeight / 2;
+    
     const [, labelX, labelY] = getBezierPath({
-      sourceX: sg.right.x,
-      sourceY: sg.right.y,
+      sourceX,
+      sourceY,
       sourcePosition: Position.Right,
-      targetX: tg.left.x,
-      targetY: tg.left.y,
+      targetX,
+      targetY,
       targetPosition: Position.Left,
     });
+    
     const z = this.viewport.zoom || 1;
     return { x: this.viewport.x + labelX * z, y: this.viewport.y + labelY * z };
   }
 
-  private computeStartLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
-    const sg = this.getNodeGeom(edge.source);
-    if (!sg) return null;
+  private computeStartLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
+    const sourceNode = this.nodes.find(n => n.id === edge.source);
+    if (!sourceNode) return null;
+    
+    const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+    const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+    const sourceX = sourceNode.position.x + sourceWidth;
+    const sourceY = sourceNode.position.y + sourceHeight / 2;
+    
     const z = this.viewport.zoom || 1;
-    const screenX = this.viewport.x + (sg.right.x * z) + 12; // 12px to the right in screen space
-    const screenY = this.viewport.y + (sg.right.y * z) - 10; // 10px up in screen space
-    return { x: screenX, y: screenY };
+    return { x: this.viewport.x + sourceX * z + 12, y: this.viewport.y + sourceY * z - 10 };
   }
 
-  private computeEndLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
-    const tg = this.getNodeGeom(edge.target);
-    if (!tg) return null;
+  private computeEndLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
+    const targetNode = this.nodes.find(n => n.id === edge.target);
+    if (!targetNode) return null;
+    
+    const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+    const targetX = targetNode.position.x;
+    const targetY = targetNode.position.y + targetHeight / 2;
+    
     const z = this.viewport.zoom || 1;
-    const screenX = this.viewport.x + (tg.left.x * z) - 12; // 12px to the left
-    const screenY = this.viewport.y + (tg.left.y * z) - 10; // 10px up
-    return { x: screenX, y: screenY };
+    return { x: this.viewport.x + targetX * z - 12, y: this.viewport.y + targetY * z - 10 };
   }
 
   instance: FlowInstance;
@@ -298,28 +317,38 @@ export class FlowCanvas extends LitElement {
         </div>
         <div class="flow-labels-overlay">
           ${this.edges.map(edge => {
-            const label = (edge.data && (edge.data as any).labelHtml) as string | undefined;
-            if (!label) return null;
-            const pos = this.computeLabelScreenPosition(edge);
+            const labelHtml = (edge.data && (edge.data as any).labelHtml) as string | undefined;
+            const labelText = (edge.data && (edge.data as any).label) as string | undefined;
+            const hasCenter = !!labelHtml || !!labelText;
+            if (!hasCenter) return null;
+            const pos = this.computeLabelCanvasPosition(edge);
             if (!pos) return null;
-            const style = `left:${pos.x}px; top:${pos.y}px;`;
-            return html`<div class="edge-label" style="${style}" .innerHTML=${label}></div>`;
+            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            return labelHtml
+              ? html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>`
+              : html`<div class="edge-label" style="${style}">${labelText}</div>`;
           })}
           ${this.edges.map(edge => {
-            const startLabel = (edge.data && (edge.data as any).startLabel) as string | undefined;
-            if (!startLabel) return null;
-            const pos = this.computeStartLabelScreenPosition(edge);
+            const startHtml = (edge.data && (edge.data as any).startLabelHtml) as string | undefined;
+            const startText = (edge.data && (edge.data as any).startLabel) as string | undefined;
+            if (!startHtml && !startText) return null;
+            const pos = this.computeStartLabelCanvasPosition(edge);
             if (!pos) return null;
-            const style = `left:${pos.x}px; top:${pos.y}px;`;
-            return html`<div class="edge-label" style="${style}">${startLabel}</div>`;
+            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            return startHtml
+              ? html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>`
+              : html`<div class="edge-label" style="${style}">${startText}</div>`;
           })}
           ${this.edges.map(edge => {
-            const endLabel = (edge.data && (edge.data as any).endLabel) as string | undefined;
-            if (!endLabel) return null;
-            const pos = this.computeEndLabelScreenPosition(edge);
+            const endHtml = (edge.data && (edge.data as any).endLabelHtml) as string | undefined;
+            const endText = (edge.data && (edge.data as any).endLabel) as string | undefined;
+            if (!endHtml && !endText) return null;
+            const pos = this.computeEndLabelCanvasPosition(edge);
             if (!pos) return null;
-            const style = `left:${pos.x}px; top:${pos.y}px;`;
-            return html`<div class="edge-label" style="${style}">${endLabel}</div>`;
+            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            return endHtml
+              ? html`<div class="edge-label" style="${style}" .innerHTML=${endHtml}></div>`
+              : html`<div class="edge-label" style="${style}">${endText}</div>`;
           })}
         </div>
         <slot></slot>
