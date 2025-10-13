@@ -1,14 +1,56 @@
 {
   "name": "lit-flow",
-  "version": "1.0.0",
-  "description": "Node-based editors and interactive diagrams",
-  "main": "index.js",
+  "version": "0.1.0",
+  "description": "Flow diagram library for Lit built on @xyflow/system",
+  "type": "module",
+  "main": "./dist/lit-flow.umd.cjs",
+  "module": "./dist/lit-flow.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/lit-flow.js",
+      "require": "./dist/lit-flow.umd.cjs"
+    },
+    "./dist/style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "diagram"
+    "diagram",
+    "flow",
+    "nodes",
+    "edges",
+    "lit",
+    "web-components",
+    "xyflow",
+    "react-flow"
   ],
-  "author": "Gliba",
-  "license": "ISC"
+  "author": "AnyBuild",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srdjang/lit-flow.git"
+  },
+  "peerDependencies": {
+    "@xyflow/system": "^0.0.70",
+    "lit": "^3.0.0"
+  },
+  "dependencies": {
+    "@xyflow/system": "^0.0.70",
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "typescript": "^5.7.3",
+    "vite": "^7.1.9",
+    "vite-plugin-dts": "^4.5.0"
+  }
 }

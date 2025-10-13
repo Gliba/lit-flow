@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>lit-flow - Development</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 1rem 2rem;
+        background: #1a1a1a;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+      }
+
+      button {
+        padding: 0.5rem 1rem;
+        background: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.875rem;
+      }
+
+      button:hover {
+        background: #1557b0;
+      }
+
+      main {
+        flex: 1;
+        position: relative;
+      }
+
+      flow-canvas {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🌊 lit-flow</h1>
+      <div class="controls">
+        <button id="add-node">Add Node</button>
+        <button id="fit-view">Fit View</button>
+        <button id="toggle-theme">Toggle Theme</button>
+      </div>
+    </header>
+
+    <main>
+      <flow-canvas id="flow">
+        <flow-background slot="background" variant="dots" gap="20" color="#e0e0e0"></flow-background>
+        <flow-controls id="controls"></flow-controls>
+        <flow-minimap></flow-minimap>
+      </flow-canvas>
+    </main>
+
+    <script type="module">
+      import './src/index.ts';
+
+      const flowCanvas = document.getElementById('flow');
+      const flowControls = document.getElementById('controls');
+      let nodeCount = 3;
+      let isDark = false;
+
+      // Wait for components to be ready
+      customElements.whenDefined('flow-canvas').then(() => {
+        // Connect controls to flow instance
+        flowControls.instance = flowCanvas.instance;
+
+        // Initialize with sample nodes and edges
+        flowCanvas.instance.setNodes([
+          {
+            id: '1',
+            position: { x: 100, y: 100 },
+            data: { label: 'Start Node' },
+            width: 150,
+            height: 50
+          },
+          {
+            id: '2',
+            position: { x: 350, y: 200 },
+            data: { label: 'Process Node' },
+            width: 150,
+            height: 50
+          },
+          {
+            id: '3',
+            position: { x: 600, y: 100 },
+            data: { label: 'End Node' },
+            width: 150,
+            height: 50
+          }
+        ]);
+
+        flowCanvas.instance.setEdges([
+          {
+            id: 'e1-2',
+            source: '1',
+            target: '2',
+            animated: true
+          },
+          {
+            id: 'e2-3',
+            source: '2',
+            target: '3'
+          }
+        ]);
+
+        // Add node button
+        document.getElementById('add-node').addEventListener('click', () => {
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `${nodeCount}`,
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: { label: `Node ${nodeCount}` },
+            width: 150,
+            height: 50
+          });
+        });
+
+        // Fit view button
+        document.getElementById('fit-view').addEventListener('click', () => {
+          flowCanvas.instance.fitView();
+        });
+
+        // Toggle theme button
+        document.getElementById('toggle-theme').addEventListener('click', () => {
+          isDark = !isDark;
+          flowCanvas.setAttribute('theme', isDark ? 'dark' : 'light');
+          
+          const bg = flowCanvas.querySelector('flow-background');
+          if (bg) {
+            bg.setAttribute('color', isDark ? '#333333' : '#e0e0e0');
+          }
+        });
+
+        // Log state changes
+        flowCanvas.instance.subscribe((state) => {
+          console.log('Flow state updated:', {
+            nodes: state.nodes.length,
+            edges: state.edges.length,
+            viewport: state.viewport
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
+
