@@ -357,9 +357,9 @@ export class FlowCanvas extends LitElement {
   }
 
   private screenToCanvas(x: number, y: number) {
-    const viewportEl = this.renderRoot.querySelector('.flow-viewport') as HTMLElement | null;
-    if (!viewportEl) return { x, y };
-    const rect = viewportEl.getBoundingClientRect();
+    const container = this.renderRoot.querySelector('.flow-container') as HTMLElement | null;
+    if (!container) return { x, y };
+    const rect = container.getBoundingClientRect();
     const vx = this.viewport.x;
     const vy = this.viewport.y;
     const z = this.viewport.zoom || 1;
