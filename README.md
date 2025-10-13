@@ -140,6 +140,86 @@ Edge component for connecting nodes.
 - `target` (String): Target node id
 - `animated` (Boolean): Animate the edge
 - `label` (String): Edge label
+- `markerStart` | `markerEnd` (Object | String): SVG marker configuration or registered id
+
+### Markers
+
+You can add arrowheads and custom markers to edges. Markers are defined per edge using `markerStart`/`markerEnd`.
+
+Built-ins:
+- `Arrow` (open)
+- `ArrowClosed` (filled triangle)
+
+Example:
+```ts
+flowCanvas.instance.setEdges([
+  {
+    id: 'e1-2',
+    source: '1',
+    target: '2',
+    markerEnd: { type: 'Arrow' },                   // open arrow
+  },
+  {
+    id: 'e2-3',
+    source: '2',
+    target: '3',
+    markerStart: { type: 'ArrowClosed', orient: 'auto-start-reverse' },
+    markerEnd:   { type: 'ArrowClosed' },           // closed arrow
+  },
+]);
+```
+
+Options for built-ins:
+- `width`/`height` (default 10)
+- `color` (default `currentColor` to match edge stroke)
+- `orient` ('auto' | 'auto-start-reverse')
+
+Custom marker:
+```ts
+flowCanvas.instance.setEdges([
+  {
+    id: 'e-custom',
+    source: '1',
+    target: '2',
+    markerEnd: {
+      type: 'custom',
+      path: 'M0,0 L10,5 L0,10 Z',   // triangle path
+      width: 10,
+      height: 10,
+      refX: 10,                     // tip alignment (defaults adjusted to avoid handle overlap)
+      refY: 5,
+      color: '#1A192B'
+    }
+  }
+]);
+```
+
+Notes:
+- Markers are deduplicated and defined once per canvas in an SVG `<defs>`.
+- The edge path references markers via `marker-start`/`marker-end` with fragment IDs.
+
+### Edge Labels
+
+There are two ways to render labels:
+
+- SVG text on the path: use the root `label` field on the edge
+```ts
+{ id: 'e1-2', source: '1', target: '2', label: 'On Path' }
+```
+
+- HTML overlay labels (portal-like): use `edge.data`
+```ts
+{
+  id: 'e2-3', source: '2', target: '3',
+  data: {
+    labelHtml: '<b>Center</b>',   // rendered at the path midpoint
+    startLabel: 'Start',          // near the source side
+    endLabel: 'End'               // near the target side
+  }
+}
+```
+
+The overlay labels are absolutely positioned in screen space and update with pan/zoom. Style them via the `.edge-label` class.
 
 #### `<flow-background>`
 

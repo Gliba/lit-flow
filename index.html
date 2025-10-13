@@ -123,14 +123,16 @@
             id: 'e1-2',
             source: '1',
             target: '2',
-            markerEnd: { type: 'Arrow' }
+            markerEnd: { type: 'Arrow' },
+            data: { label: 'center', startLabel: 'start', endLabel: 'end' }
           },
           {
             id: 'e2-3',
             source: '2',
             target: '3',
             markerStart: { type: 'ArrowClosed', orient: 'auto-start-reverse' },
-            markerEnd: { type: 'ArrowClosed' }
+            markerEnd: { type: 'ArrowClosed' },
+            label: 'center'
           }
         ]);
 
