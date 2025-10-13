@@ -10,6 +10,10 @@ import type { Node } from '../core/types';
 
 @customElement('flow-edge')
 export class FlowEdge extends LitElement {
+  // Render in light DOM so marker defs in parent shadow root are addressable
+  protected createRenderRoot() {
+    return this;
+  }
   static styles = css`
     :host {
       position: absolute;
@@ -72,6 +76,10 @@ export class FlowEdge extends LitElement {
   @property({ type: Boolean }) animated = false;
   @property({ type: Boolean }) selected = false;
   @property({ type: String }) label = '';
+  @property({ type: String }) markerStartId?: string;
+  @property({ type: String }) markerEndId?: string;
+  @property({ type: String }) markerStartDef?: string;
+  @property({ type: String }) markerEndDef?: string;
 
   private getViewportTransform(): { x: number; y: number; zoom: number } {
     const root = this.getRootNode() as ShadowRoot;
@@ -175,21 +183,32 @@ export class FlowEdge extends LitElement {
       this.selected && 'selected'
     ].filter(Boolean).join(' ');
     
+    const markerStart = this.markerStartId ? `url(#${this.markerStartId})` : undefined;
+    const markerEnd = this.markerEndId ? `url(#${this.markerEndId})` : undefined;
+
+    const styleAttr = `fill: none; stroke: var(--flow-edge-color, #b1b1b7); stroke-width: 2; pointer-events: stroke;`;
+    const dashAttr = this.animated ? '5' : '';
+
     return html`
-      <svg>
+      <svg style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible">
         ${svg`
           <path 
             class="${pathClasses}"
             d="${path}"
+            style="${styleAttr}"
+            stroke-dasharray="${dashAttr}"
+            marker-start="${markerStart ?? ''}"
+            marker-end="${markerEnd ?? ''}"
             @click=${this.handleClick}
           />
           ${this.label ? svg`
             <text 
-              class="edge-label" 
               x="${labelX}" 
               y="${labelY}" 
               text-anchor="middle"
               dy="-5"
+              fill="#333"
+              style="user-select:none; pointer-events:none; font-size:12px;"
             >
               ${this.label}
             </text>

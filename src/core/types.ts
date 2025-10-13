@@ -22,10 +22,21 @@ export type Node<
 > = NodeBase<NodeData, NodeType>;
 
 // Lit-specific edge type (extends system EdgeBase)
+export type MarkerOrient = 'auto' | 'auto-start-reverse';
+
+export type MarkerBuiltin = 'Arrow' | 'ArrowClosed';
+
+export type MarkerSpec =
+  | { type: MarkerBuiltin; width?: number; height?: number; color?: string; orient?: MarkerOrient }
+  | { type: 'custom'; id?: string; path: string; refX?: number; refY?: number; width?: number; height?: number; color?: string; orient?: MarkerOrient };
+
 export type Edge<
   EdgeData extends Record<string, unknown> = Record<string, unknown>,
   EdgeType extends string | undefined = string | undefined
-> = EdgeBase<EdgeData, EdgeType>;
+> = EdgeBase<EdgeData, EdgeType> & {
+  markerStart?: MarkerSpec | string;
+  markerEnd?: MarkerSpec | string;
+};
 
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;
 

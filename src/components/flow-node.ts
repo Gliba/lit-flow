@@ -47,24 +47,24 @@ export class FlowNode extends LitElement {
 
     .handle {
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background: var(--flow-handle-bg, #fff);
-      border: 2px solid var(--flow-handle-border, #1a73e8);
-      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15);
+      border: 1px solid var(--flow-handle-border, #1a73e8);
+      box-shadow: 0 0 0 1px rgba(26, 115, 232, 0.15);
       cursor: crosshair;
       pointer-events: auto;
     }
 
     .handle.source {
-      right: -6px;
+      right: -5px;
       top: 50%;
       transform: translateY(-50%);
     }
 
     .handle.target {
-      left: -6px;
+      left: -5px;
       top: 50%;
       transform: translateY(-50%);
     }
