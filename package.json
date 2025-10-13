@@ -1,6 +1,6 @@
 {
   "name": "lit-flow",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Flow diagram library for Lit built on @xyflow/system",
   "type": "module",
   "main": "./dist/lit-flow.umd.cjs",
