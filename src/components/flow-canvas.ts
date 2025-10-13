@@ -8,7 +8,8 @@ import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { FlowInstance } from '../core/flow-instance';
-import type { Node, Edge, Viewport, MarkerSpec, MarkerBuiltin, MarkerOrient } from '../core/types';
+import type { Node, Edge, Viewport, MarkerSpec } from '../core/types';
+import { getBezierPath, Position } from '../utils/geometry';
 
 @customElement('flow-canvas')
 export class FlowCanvas extends LitElement {
@@ -59,6 +60,29 @@ export class FlowCanvas extends LitElement {
       width: 100%;
       height: 100%;
       pointer-events: none;
+    }
+
+    .flow-labels-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .edge-label {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: white;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      color: #333;
+      pointer-events: all;
+      white-space: nowrap;
+      user-select: none;
     }
   `;
 
@@ -133,6 +157,55 @@ export class FlowCanvas extends LitElement {
     return `<marker id="${id}" markerWidth="${width}" markerHeight="${height}" refX="${refX}" refY="${refY}" orient="${orient}" markerUnits="userSpaceOnUse"><path d="${path}" fill="none" stroke="${color}" stroke-width="2"/></marker>`;
   }
 
+  private getNodeGeom(nodeId: string): { left: { x: number; y: number }; right: { x: number; y: number } } | null {
+    const el = this.renderRoot.querySelector(`flow-node[id="${CSS.escape(nodeId)}"]`) as HTMLElement | null;
+    const viewportEl = this.renderRoot.querySelector('.flow-viewport') as HTMLElement | null;
+    if (!el || !viewportEl) return null;
+    const rect = el.getBoundingClientRect();
+    const vpRect = viewportEl.getBoundingClientRect();
+    const z = this.viewport.zoom || 1;
+    const x = (rect.left - vpRect.left - this.viewport.x) / z;
+    const y = (rect.top - vpRect.top - this.viewport.y) / z;
+    const w = rect.width / z;
+    const h = rect.height / z;
+    const cy = y + h / 2;
+    return { left: { x: x, y: cy }, right: { x: x + w, y: cy } };
+  }
+
+  private computeLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
+    const sg = this.getNodeGeom(edge.source);
+    const tg = this.getNodeGeom(edge.target);
+    if (!sg || !tg) return null;
+    const [, labelX, labelY] = getBezierPath({
+      sourceX: sg.right.x,
+      sourceY: sg.right.y,
+      sourcePosition: Position.Right,
+      targetX: tg.left.x,
+      targetY: tg.left.y,
+      targetPosition: Position.Left,
+    });
+    const z = this.viewport.zoom || 1;
+    return { x: this.viewport.x + labelX * z, y: this.viewport.y + labelY * z };
+  }
+
+  private computeStartLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
+    const sg = this.getNodeGeom(edge.source);
+    if (!sg) return null;
+    const z = this.viewport.zoom || 1;
+    const screenX = this.viewport.x + (sg.right.x * z) + 12; // 12px to the right in screen space
+    const screenY = this.viewport.y + (sg.right.y * z) - 10; // 10px up in screen space
+    return { x: screenX, y: screenY };
+  }
+
+  private computeEndLabelScreenPosition(edge: Edge): { x: number; y: number } | null {
+    const tg = this.getNodeGeom(edge.target);
+    if (!tg) return null;
+    const z = this.viewport.zoom || 1;
+    const screenX = this.viewport.x + (tg.left.x * z) - 12; // 12px to the left
+    const screenY = this.viewport.y + (tg.left.y * z) - 10; // 10px up
+    return { x: screenX, y: screenY };
+  }
+
   instance: FlowInstance;
   private unsubscribe?: () => void;
 
@@ -199,7 +272,7 @@ export class FlowCanvas extends LitElement {
                   .sourceNode=${sourceNode}
                   .targetNode=${targetNode}
                   .animated=${edge.animated || false}
-                  .label=${edge.data?.label || ''}
+                  .label=${(edge as any).label || ''}
                   .markerStartId=${markerStartId}
                   .markerEndId=${markerEndId}
                   .markerStartDef=${markerStartDef}
@@ -222,6 +295,32 @@ export class FlowCanvas extends LitElement {
               ></flow-node>
             `)}
           </div>
+        </div>
+        <div class="flow-labels-overlay">
+          ${this.edges.map(edge => {
+            const label = (edge.data && (edge.data as any).labelHtml) as string | undefined;
+            if (!label) return null;
+            const pos = this.computeLabelScreenPosition(edge);
+            if (!pos) return null;
+            const style = `left:${pos.x}px; top:${pos.y}px;`;
+            return html`<div class="edge-label" style="${style}" .innerHTML=${label}></div>`;
+          })}
+          ${this.edges.map(edge => {
+            const startLabel = (edge.data && (edge.data as any).startLabel) as string | undefined;
+            if (!startLabel) return null;
+            const pos = this.computeStartLabelScreenPosition(edge);
+            if (!pos) return null;
+            const style = `left:${pos.x}px; top:${pos.y}px;`;
+            return html`<div class="edge-label" style="${style}">${startLabel}</div>`;
+          })}
+          ${this.edges.map(edge => {
+            const endLabel = (edge.data && (edge.data as any).endLabel) as string | undefined;
+            if (!endLabel) return null;
+            const pos = this.computeEndLabelScreenPosition(edge);
+            if (!pos) return null;
+            const style = `left:${pos.x}px; top:${pos.y}px;`;
+            return html`<div class="edge-label" style="${style}">${endLabel}</div>`;
+          })}
         </div>
         <slot></slot>
       </div>
