@@ -1,0 +1,14 @@
+{
+  "name": "lit-flow",
+  "version": "1.0.0",
+  "description": "Node-based editors and interactive diagrams",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "diagram"
+  ],
+  "author": "Gliba",
+  "license": "ISC"
+}
