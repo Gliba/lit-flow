@@ -221,6 +221,282 @@ There are two ways to render labels:
 
 The overlay labels are absolutely positioned in screen space and update with pan/zoom. Style them via the `.edge-label` class.
 
+## 🎭 Custom Nodes
+
+lit-flow supports custom node types, allowing you to create specialized components for different use cases like database tables, process steps, or any custom UI.
+
+### Node Type System
+
+Register custom node types by passing a `nodeTypes` object to `flow-canvas`:
+
+```html
+<flow-canvas id="flow" nodeTypes='{"erd-table": "erd-table-node", "custom": "my-custom-node"}'>
+  <!-- your flow content -->
+</flow-canvas>
+```
+
+### Creating Custom Nodes
+
+Custom nodes must extend the `FlowNode` base class:
+
+```typescript
+import { html, css } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { FlowNode } from 'lit-flow';
+
+@customElement('my-custom-node')
+export class MyCustomNode extends FlowNode {
+  static styles = [
+    ...(Array.isArray(super.styles) ? super.styles : [super.styles]),
+    css`
+      :host {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 16px;
+        color: white;
+        min-width: 120px;
+      }
+    `
+  ];
+
+  render() {
+    return html`
+      <div>
+        <h3>${this.data?.title || 'Custom Node'}</h3>
+        <p>${this.data?.description || ''}</p>
+      </div>
+    `;
+  }
+}
+```
+
+### Multiple Connection Handles
+
+Create nodes with multiple connection points using handles:
+
+```typescript
+@customElement('erd-table-node')
+export class ERDTableNode extends FlowNode {
+  private onFieldHandleMouseDown(fieldName: string, side: 'left' | 'right') {
+    return (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const handleId = `${this.id}-${fieldName}-${side}`;
+      
+      this.dispatchEvent(new CustomEvent('handle-start', {
+        detail: { 
+          nodeId: this.id, 
+          type: side === 'left' ? 'target' : 'source',
+          handleId,
+          fieldName
+        },
+        bubbles: true,
+        composed: true
+      }));
+    };
+  }
+
+  render() {
+    const fields = this.data?.fields || [];
+    
+    return html`
+      <div class="table-header">
+        <h3>${this.data?.tableName || 'Table'}</h3>
+      </div>
+      
+      <div class="table-body">
+        ${fields.map(field => html`
+          <div class="field-row">
+            <div class="field-name">${field.name}</div>
+            <div class="field-type">${field.type}</div>
+            
+            <!-- Left handle (input) -->
+            <div 
+              class="field-handle left"
+              data-handle-id="${this.id}-${field.name}-left"
+              @mousedown=${this.onFieldHandleMouseDown(field.name, 'left')}
+            ></div>
+            
+            <!-- Right handle (output) -->
+            <div 
+              class="field-handle right"
+              data-handle-id="${this.id}-${field.name}-right"
+              @mousedown=${this.onFieldHandleMouseDown(field.name, 'right')}
+            ></div>
+          </div>
+        `)}
+      </div>
+    `;
+  }
+}
+```
+
+### Handle Styling
+
+Style your handles with CSS:
+
+```css
+.field-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--flow-handle-bg, #fff);
+  border: 2px solid var(--flow-handle-border, #2563eb);
+  cursor: crosshair;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.field-handle.left {
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.field-handle.right {
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+```
+
+### Using Custom Nodes
+
+Add nodes with the `type` property:
+
+```javascript
+flowCanvas.instance.setNodes([
+  {
+    id: '1',
+    type: 'erd-table',
+    position: { x: 100, y: 100 },
+    data: {
+      tableName: 'Users',
+      fields: [
+        { name: 'id', type: 'INT', key: 'PK' },
+        { name: 'name', type: 'VARCHAR' },
+        { name: 'email', type: 'VARCHAR' }
+      ]
+    }
+  },
+  {
+    id: '2',
+    type: 'custom',
+    position: { x: 400, y: 100 },
+    data: {
+      title: 'Process Step',
+      description: 'Custom business logic'
+    }
+  }
+]);
+```
+
+### Edge Connections with Handles
+
+When using multiple handles, specify which handle to connect:
+
+```javascript
+flowCanvas.instance.setEdges([
+  {
+    id: 'e1-2',
+    source: '1',
+    target: '2',
+    sourceHandle: '1-name-right',    // Connect from 'name' field's right handle
+    targetHandle: '2-in'             // Connect to 'in' handle on target
+  }
+]);
+```
+
+### Built-in UI Components
+
+lit-flow provides reusable UI components for building custom nodes:
+
+```typescript
+import { 
+  BaseNode, 
+  BaseNodeHeader, 
+  BaseNodeHeaderTitle, 
+  BaseNodeContent, 
+  BaseNodeFooter 
+} from 'lit-flow';
+
+@customElement('base-demo-node')
+export class BaseDemoNode extends BaseNode {
+  render() {
+    return html`
+      <base-node-header>
+        <base-node-header-title>${this.data?.title || 'Demo'}</base-node-header-title>
+      </base-node-header>
+      
+      <base-node-content>
+        <p>${this.data?.description || 'Content goes here'}</p>
+      </base-node-content>
+      
+      <base-node-footer>
+        <button>Action</button>
+      </base-node-footer>
+      
+      <!-- Handles -->
+      <div class="handle left" data-handle-id="${this.id}-in"></div>
+      <div class="handle right" data-handle-id="${this.id}-out"></div>
+    `;
+  }
+}
+```
+
+### Available Node Types
+
+lit-flow includes several built-in node types:
+
+- **`default`** - Basic rectangular node (default)
+- **`erd-table`** - Database table with field-level handles
+- **Custom types** - Any registered custom component
+
+### Complete Example
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/lit-flow/dist/lit-flow.js"></script>
+</head>
+<body>
+  <flow-canvas id="flow" nodeTypes='{"erd-table": "erd-table-node"}'>
+    <flow-background variant="dots"></flow-background>
+    
+    <script type="module">
+      import { ERDTableNode } from 'lit-flow';
+      
+      // Register custom node
+      customElements.define('erd-table-node', ERDTableNode);
+      
+      const flowCanvas = document.getElementById('flow');
+      
+      customElements.whenDefined('flow-canvas').then(() => {
+        flowCanvas.instance.setNodes([
+          {
+            id: 'users',
+            type: 'erd-table',
+            position: { x: 100, y: 100 },
+            data: {
+              tableName: 'Users',
+              fields: [
+                { name: 'id', type: 'INT', key: 'PK' },
+                { name: 'username', type: 'VARCHAR' },
+                { name: 'email', type: 'VARCHAR' }
+              ]
+            }
+          }
+        ]);
+      });
+    </script>
+  </flow-canvas>
+</body>
+</html>
+```
+
 #### `<flow-background>`
 
 Background pattern component.
