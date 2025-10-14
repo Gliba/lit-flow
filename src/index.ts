@@ -15,6 +15,14 @@ export { FlowEdge } from './components/flow-edge';
 export { FlowBackground } from './components/flow-background';
 export { FlowMinimap } from './components/flow-minimap';
 export { FlowControls } from './components/flow-controls';
+export { ERDTableNode } from './components/ui/erd-table-node';
+export {
+  BaseNode,
+  BaseNodeHeader,
+  BaseNodeHeaderTitle,
+  BaseNodeContent,
+  BaseNodeFooter,
+} from './components/ui/base-node';
 
 // Type exports
 export type {
@@ -30,6 +38,7 @@ export type {
 } from './core/types';
 
 export type { BackgroundVariant } from './components/flow-background';
+export type { ERDField, ERDTableData } from './components/ui/erd-table-node';
 
 // Utility exports
 export {

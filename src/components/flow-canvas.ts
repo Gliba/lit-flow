@@ -3,7 +3,8 @@
  * This is the root element that manages the viewport and renders nodes/edges
  */
 
-import { LitElement, html, css, svg } from 'lit';
+import { LitElement, css } from 'lit';
+import { html, svg, unsafeStatic } from 'lit/static-html.js';
 import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -89,8 +90,15 @@ export class FlowCanvas extends LitElement {
   @property({ type: Array }) nodes: Node[] = [];
   @property({ type: Array }) edges: Edge[] = [];
   @property({ type: Object }) viewport: Viewport = { x: 0, y: 0, zoom: 1 };
+  
+  // Node type registry (maps type name to tag name)
+  @property({ type: Object }) nodeTypes: Record<string, string> = {};
 
-  private connection: { from?: { nodeId: string }; to?: { nodeId: string }; preview?: { x: number; y: number } } | null = null;
+  private connection: { 
+    from?: { nodeId: string; handleId?: string }; 
+    to?: { nodeId: string; handleId?: string }; 
+    preview?: { x: number; y: number } 
+  } | null = null;
 
   // Marker registry: normalizedKey -> id
   private markerRegistry = new Map<string, string>();
@@ -172,20 +180,86 @@ export class FlowCanvas extends LitElement {
     return { left: { x: x, y: cy }, right: { x: x + w, y: cy } };
   }
 
+  /**
+   * Get handle position in canvas coordinates
+   */
+  private getHandleCanvasPosition(nodeId: string, handleId: string): { x: number; y: number } | null {
+    const nodeEl = this.renderRoot.querySelector(`[id="${CSS.escape(nodeId)}"]`) as HTMLElement | null;
+    if (!nodeEl) return null;
+
+    // Find handle element in shadow root or light DOM
+    let handleEl: HTMLElement | null = null;
+    const shadowRoot = nodeEl.shadowRoot;
+    if (shadowRoot) {
+      handleEl = shadowRoot.querySelector(`[data-handle-id="${CSS.escape(handleId)}"]`) as HTMLElement;
+    }
+    if (!handleEl) {
+      handleEl = nodeEl.querySelector(`[data-handle-id="${CSS.escape(handleId)}"]`) as HTMLElement;
+    }
+    if (!handleEl) return null;
+
+    // Get node data
+    const node = this.nodes.find(n => n.id === nodeId);
+    if (!node) return null;
+
+    // Calculate handle offset within node
+    const nodeRect = nodeEl.getBoundingClientRect();
+    const handleRect = handleEl.getBoundingClientRect();
+    const zoom = this.viewport.zoom || 1;
+    
+    const offsetX = (handleRect.left + handleRect.width / 2 - nodeRect.left) / zoom;
+    const offsetY = (handleRect.top + handleRect.height / 2 - nodeRect.top) / zoom;
+    
+    return {
+      x: node.position.x + offsetX,
+      y: node.position.y + offsetY
+    };
+  }
+
   private computeLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
     const sourceNode = this.nodes.find(n => n.id === edge.source);
     const targetNode = this.nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return null;
     
-    const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
-    const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
-    const targetWidth = targetNode.measured?.width || targetNode.width || 150;
-    const targetHeight = targetNode.measured?.height || targetNode.height || 50;
-    
-    const sourceX = sourceNode.position.x + sourceWidth;
-    const sourceY = sourceNode.position.y + sourceHeight / 2;
-    const targetX = targetNode.position.x;
-    const targetY = targetNode.position.y + targetHeight / 2;
+    // Try to use specific handle positions if available
+    let sourceX: number, sourceY: number;
+    let targetX: number, targetY: number;
+
+    if (edge.sourceHandle) {
+      const handlePos = this.getHandleCanvasPosition(edge.source, edge.sourceHandle);
+      if (handlePos) {
+        sourceX = handlePos.x;
+        sourceY = handlePos.y;
+      } else {
+        // Fallback to node edge
+        const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+        const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+        sourceX = sourceNode.position.x + sourceWidth;
+        sourceY = sourceNode.position.y + sourceHeight / 2;
+      }
+    } else {
+      const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+      const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+      sourceX = sourceNode.position.x + sourceWidth;
+      sourceY = sourceNode.position.y + sourceHeight / 2;
+    }
+
+    if (edge.targetHandle) {
+      const handlePos = this.getHandleCanvasPosition(edge.target, edge.targetHandle);
+      if (handlePos) {
+        targetX = handlePos.x;
+        targetY = handlePos.y;
+      } else {
+        // Fallback to node edge
+        targetX = targetNode.position.x;
+        const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+        targetY = targetNode.position.y + targetHeight / 2;
+      }
+    } else {
+      targetX = targetNode.position.x;
+      const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+      targetY = targetNode.position.y + targetHeight / 2;
+    }
     
     const [, labelX, labelY] = getBezierPath({
       sourceX,
@@ -196,33 +270,59 @@ export class FlowCanvas extends LitElement {
       targetPosition: Position.Left,
     });
     
-    const z = this.viewport.zoom || 1;
-    return { x: this.viewport.x + labelX * z, y: this.viewport.y + labelY * z };
+    return { x: labelX, y: labelY };
   }
 
   private computeStartLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
     const sourceNode = this.nodes.find(n => n.id === edge.source);
     if (!sourceNode) return null;
     
-    const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
-    const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
-    const sourceX = sourceNode.position.x + sourceWidth;
-    const sourceY = sourceNode.position.y + sourceHeight / 2;
+    let sourceX: number, sourceY: number;
+
+    if (edge.sourceHandle) {
+      const handlePos = this.getHandleCanvasPosition(edge.source, edge.sourceHandle);
+      if (handlePos) {
+        sourceX = handlePos.x;
+        sourceY = handlePos.y;
+      } else {
+        const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+        const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+        sourceX = sourceNode.position.x + sourceWidth;
+        sourceY = sourceNode.position.y + sourceHeight / 2;
+      }
+    } else {
+      const sourceWidth = sourceNode.measured?.width || sourceNode.width || 150;
+      const sourceHeight = sourceNode.measured?.height || sourceNode.height || 50;
+      sourceX = sourceNode.position.x + sourceWidth;
+      sourceY = sourceNode.position.y + sourceHeight / 2;
+    }
     
-    const z = this.viewport.zoom || 1;
-    return { x: this.viewport.x + sourceX * z + 12, y: this.viewport.y + sourceY * z - 10 };
+    return { x: sourceX + 12, y: sourceY - 10 };
   }
 
   private computeEndLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
     const targetNode = this.nodes.find(n => n.id === edge.target);
     if (!targetNode) return null;
     
-    const targetHeight = targetNode.measured?.height || targetNode.height || 50;
-    const targetX = targetNode.position.x;
-    const targetY = targetNode.position.y + targetHeight / 2;
+    let targetX: number, targetY: number;
+
+    if (edge.targetHandle) {
+      const handlePos = this.getHandleCanvasPosition(edge.target, edge.targetHandle);
+      if (handlePos) {
+        targetX = handlePos.x;
+        targetY = handlePos.y;
+      } else {
+        const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+        targetX = targetNode.position.x;
+        targetY = targetNode.position.y + targetHeight / 2;
+      }
+    } else {
+      const targetHeight = targetNode.measured?.height || targetNode.height || 50;
+      targetX = targetNode.position.x;
+      targetY = targetNode.position.y + targetHeight / 2;
+    }
     
-    const z = this.viewport.zoom || 1;
-    return { x: this.viewport.x + targetX * z - 12, y: this.viewport.y + targetY * z - 10 };
+    return { x: targetX - 12, y: targetY - 10 };
   }
 
   instance: FlowInstance;
@@ -257,6 +357,31 @@ export class FlowCanvas extends LitElement {
     window.removeEventListener('mouseup', this.onMouseUp);
   }
 
+  /**
+   * Renders a node with dynamic tag name based on node type
+   * Falls back to 'flow-node' if type is not registered
+   */
+  private renderNode(node: Node) {
+    // Get the tag name for this node type, or use default 'flow-node'
+    const nodeType = node.type || 'default';
+    const tagName = this.nodeTypes[nodeType] || 'flow-node';
+    
+    // Use lit-html's unsafeStatic to render dynamic tag names
+    const tag = unsafeStatic(tagName);
+    
+    return html`
+      <${tag}
+        .id=${node.id}
+        .data=${node.data}
+        .position=${node.position}
+        .selected=${node.selected || false}
+        .draggable=${node.draggable !== false}
+        .instance=${this.instance}
+        @handle-start=${this.onHandleStart}
+      ></${tag}>
+    `;
+  }
+
   render() {
     const transform = `translate(${this.viewport.x}px, ${this.viewport.y}px) scale(${this.viewport.zoom})`;
     
@@ -288,6 +413,8 @@ export class FlowCanvas extends LitElement {
                   .id=${edge.id}
                   .source=${edge.source}
                   .target=${edge.target}
+                  .sourceHandle=${edge.sourceHandle}
+                  .targetHandle=${edge.targetHandle}
                   .sourceNode=${sourceNode}
                   .targetNode=${targetNode}
                   .animated=${edge.animated || false}
@@ -302,54 +429,44 @@ export class FlowCanvas extends LitElement {
             ${this.renderPreviewEdge()}
           </div>
           <div class="flow-nodes-layer">
-            ${this.nodes.map(node => html`
-              <flow-node 
-                .id=${node.id}
-                .data=${node.data}
-                .position=${node.position}
-                .selected=${node.selected || false}
-                .draggable=${node.draggable !== false}
-                .instance=${this.instance}
-                @handle-start=${this.onHandleStart}
-              ></flow-node>
-            `)}
+            ${this.nodes.map(node => this.renderNode(node))}
           </div>
-        </div>
-        <div class="flow-labels-overlay">
-          ${this.edges.map(edge => {
-            const labelHtml = (edge.data && (edge.data as any).labelHtml) as string | undefined;
-            const labelText = (edge.data && (edge.data as any).label) as string | undefined;
-            const hasCenter = !!labelHtml || !!labelText;
-            if (!hasCenter) return null;
-            const pos = this.computeLabelCanvasPosition(edge);
-            if (!pos) return null;
-            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
-            return labelHtml
-              ? html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>`
-              : html`<div class="edge-label" style="${style}">${labelText}</div>`;
-          })}
-          ${this.edges.map(edge => {
-            const startHtml = (edge.data && (edge.data as any).startLabelHtml) as string | undefined;
-            const startText = (edge.data && (edge.data as any).startLabel) as string | undefined;
-            if (!startHtml && !startText) return null;
-            const pos = this.computeStartLabelCanvasPosition(edge);
-            if (!pos) return null;
-            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
-            return startHtml
-              ? html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>`
-              : html`<div class="edge-label" style="${style}">${startText}</div>`;
-          })}
-          ${this.edges.map(edge => {
-            const endHtml = (edge.data && (edge.data as any).endLabelHtml) as string | undefined;
-            const endText = (edge.data && (edge.data as any).endLabel) as string | undefined;
-            if (!endHtml && !endText) return null;
-            const pos = this.computeEndLabelCanvasPosition(edge);
-            if (!pos) return null;
-            const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
-            return endHtml
-              ? html`<div class="edge-label" style="${style}" .innerHTML=${endHtml}></div>`
-              : html`<div class="edge-label" style="${style}">${endText}</div>`;
-          })}
+          <div class="flow-labels-overlay">
+            ${this.edges.map(edge => {
+              const labelHtml = (edge.data && (edge.data as any).labelHtml) as string | undefined;
+              const labelText = (edge.data && (edge.data as any).label) as string | undefined;
+              const hasCenter = !!labelHtml || !!labelText;
+              if (!hasCenter) return null;
+              const pos = this.computeLabelCanvasPosition(edge);
+              if (!pos) return null;
+              const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+              return labelHtml
+                ? html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>`
+                : html`<div class="edge-label" style="${style}">${labelText}</div>`;
+            })}
+            ${this.edges.map(edge => {
+              const startHtml = (edge.data && (edge.data as any).startLabelHtml) as string | undefined;
+              const startText = (edge.data && (edge.data as any).startLabel) as string | undefined;
+              if (!startHtml && !startText) return null;
+              const pos = this.computeStartLabelCanvasPosition(edge);
+              if (!pos) return null;
+              const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+              return startHtml
+                ? html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>`
+                : html`<div class="edge-label" style="${style}">${startText}</div>`;
+            })}
+            ${this.edges.map(edge => {
+              const endHtml = (edge.data && (edge.data as any).endLabelHtml) as string | undefined;
+              const endText = (edge.data && (edge.data as any).endLabel) as string | undefined;
+              if (!endHtml && !endText) return null;
+              const pos = this.computeEndLabelCanvasPosition(edge);
+              if (!pos) return null;
+              const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+              return endHtml
+                ? html`<div class="edge-label" style="${style}" .innerHTML=${endHtml}></div>`
+                : html`<div class="edge-label" style="${style}">${endText}</div>`;
+            })}
+          </div>
         </div>
         <slot></slot>
       </div>
@@ -366,12 +483,12 @@ export class FlowCanvas extends LitElement {
     return { x: (x - rect.left - vx) / z, y: (y - rect.top - vy) / z };
   }
 
-  private onHandleStart = (e: CustomEvent<{ nodeId: string; type: 'source' | 'target' }>) => {
-    const { nodeId, type } = e.detail;
+  private onHandleStart = (e: CustomEvent<{ nodeId: string; type: 'source' | 'target'; handleId?: string }>) => {
+    const { nodeId, type, handleId } = e.detail;
     if (type === 'source') {
-      this.connection = { from: { nodeId } };
+      this.connection = { from: { nodeId, handleId } };
     } else {
-      this.connection = { to: { nodeId } };
+      this.connection = { to: { nodeId, handleId } };
     }
   };
 
@@ -387,22 +504,47 @@ export class FlowCanvas extends LitElement {
 
     const path = e.composedPath() as EventTarget[];
     let targetEl: HTMLElement | null = null;
+    let targetHandleId: string | undefined;
+    
+    // Find target node element (can be flow-node or any custom node type)
     for (const t of path) {
-      if (t instanceof HTMLElement && t.tagName.toLowerCase() === 'flow-node') {
-        targetEl = t;
-        break;
+      if (t instanceof HTMLElement) {
+        const tagName = t.tagName.toLowerCase();
+        // Check if it's a node element (flow-node or any registered custom node type)
+        if (tagName === 'flow-node' || Object.values(this.nodeTypes).some(tag => tag === tagName)) {
+          targetEl = t;
+          break;
+        }
+        // Check if it's a handle element
+        if (t.dataset.handleId) {
+          targetHandleId = t.dataset.handleId;
+        }
       }
     }
     const targetId = targetEl?.getAttribute('id') || undefined;
 
     if (this.connection.from && targetId && targetId !== this.connection.from.nodeId) {
       const newEdgeId = `e-${this.connection.from.nodeId}-${targetId}-${Date.now()}`;
-      this.instance.addEdge({ id: newEdgeId, source: this.connection.from.nodeId, target: targetId, data: {} });
+      this.instance.addEdge({ 
+        id: newEdgeId, 
+        source: this.connection.from.nodeId, 
+        target: targetId, 
+        sourceHandle: this.connection.from.handleId,
+        targetHandle: targetHandleId,
+        data: {} 
+      });
     }
 
     if (this.connection.to && targetId && targetId !== this.connection.to.nodeId) {
       const newEdgeId = `e-${targetId}-${this.connection.to.nodeId}-${Date.now()}`;
-      this.instance.addEdge({ id: newEdgeId, source: targetId, target: this.connection.to.nodeId, data: {} });
+      this.instance.addEdge({ 
+        id: newEdgeId, 
+        source: targetId, 
+        target: this.connection.to.nodeId, 
+        sourceHandle: targetHandleId,
+        targetHandle: this.connection.to.handleId,
+        data: {} 
+      });
     }
 
     this.connection = null;
@@ -422,6 +564,7 @@ export class FlowCanvas extends LitElement {
           .id=${'preview'}
           .source=${nodeFrom.id}
           .target=${'__preview__'}
+          .sourceHandle=${this.connection.from?.handleId}
           .sourceNode=${{ ...nodeFrom, position: nodeFrom.position } as any}
           .targetNode=${{ id: '__preview__', position: { x: preview.x, y: preview.y }, width: 1, height: 1, data: {} } as any}
           .animated=${true}
@@ -437,6 +580,7 @@ export class FlowCanvas extends LitElement {
           .source=${'__preview__'}
           .target=${nodeTo.id}
           .sourceNode=${{ id: '__preview__', position: { x: preview.x, y: preview.y }, width: 1, height: 1, data: {} } as any}
+          .targetHandle=${this.connection.to?.handleId}
           .targetNode=${{ ...nodeTo, position: nodeTo.position } as any}
           .animated=${true}
           .label=${''}

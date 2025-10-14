@@ -19,7 +19,9 @@ export type Viewport = SystemViewport;
 export type Node<
   NodeData extends Record<string, unknown> = Record<string, unknown>,
   NodeType extends string | undefined = string | undefined
-> = NodeBase<NodeData, NodeType>;
+> = NodeBase<NodeData, NodeType> & {
+  type?: string; // 'default', 'erd-table', 'custom', etc.
+};
 
 // Lit-specific edge type (extends system EdgeBase)
 export type MarkerOrient = 'auto' | 'auto-start-reverse';
@@ -34,6 +36,8 @@ export type Edge<
   EdgeData extends Record<string, unknown> = Record<string, unknown>,
   EdgeType extends string | undefined = string | undefined
 > = EdgeBase<EdgeData, EdgeType> & {
+  sourceHandle?: string;  // Specific handle ID on source node
+  targetHandle?: string;  // Specific handle ID on target node
   markerStart?: MarkerSpec | string;
   markerEnd?: MarkerSpec | string;
 };

@@ -19,7 +19,7 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "examples/base-demo-node.ts"],
   "exclude": ["node_modules", "dist"]
 }
 

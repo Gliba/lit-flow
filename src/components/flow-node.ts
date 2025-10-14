@@ -3,14 +3,14 @@
  * Represents a draggable node in the flow diagram
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, CSSResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { XYPosition } from '../core/types';
 import type { FlowInstance } from '../core/flow-instance';
 
 @customElement('flow-node')
 export class FlowNode extends LitElement {
-  static styles = css`
+  static styles: CSSResult | CSSResult[] = css`
     :host {
       position: absolute;
       border: 1px solid var(--flow-node-border, #ddd);
