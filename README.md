@@ -446,11 +446,261 @@ export class BaseDemoNode extends BaseNode {
 }
 ```
 
+## 🎨 Shape Nodes
+
+lit-flow includes a powerful shape node system that allows you to create nodes with various geometric shapes using SVG rendering. Shape nodes are perfect for creating visual diagrams, flowcharts, and process maps.
+
+### Features
+
+- **7 Built-in Shapes** - Circle, Rectangle, Diamond, Triangle, Hexagon, Octagon, and Heart
+- **SVG Rendering** - Crisp, scalable shapes that look great at any size
+- **Full Customization** - Colors, strokes, gradients, rotation, and sizing
+- **Shape Registry** - Extensible system for adding custom shapes
+- **Interactive** - Drag, select, and connect with handles
+- **TypeScript Support** - Full type safety for shape configurations
+
+### Available Shape Types
+
+#### Basic Shapes
+- **Circle** - Perfect circle for start/end points
+- **Rectangle** - Standard rectangular shapes
+- **Diamond** - Diamond/rhombus for decision points
+- **Triangle** - Triangle for directional flow
+
+#### Geometric Shapes
+- **Hexagon** - Six-sided polygon for process steps
+- **Octagon** - Eight-sided polygon for special operations
+
+#### Symbolic Shapes
+- **Heart** - Heart shape for user-related elements
+
+### Basic Usage
+
+Create shape nodes by setting the `type` to `'shape'` and providing shape configuration data:
+
+```javascript
+flowCanvas.instance.setNodes([
+  {
+    id: 'circle-1',
+    type: 'shape',
+    position: { x: 100, y: 100 },
+    data: {
+      type: 'shape',
+      data: {
+        type: 'circle',
+        backgroundColor: '#3b82f6',
+        strokeColor: '#1e40af',
+        strokeWidth: 2,
+        label: 'Start'
+      }
+    }
+  },
+  {
+    id: 'diamond-1',
+    type: 'shape',
+    position: { x: 300, y: 100 },
+    data: {
+      type: 'shape',
+      data: {
+        type: 'diamond',
+        backgroundColor: '#f59e0b',
+        strokeColor: '#d97706',
+        strokeWidth: 2,
+        size: { width: 120, height: 120 },
+        label: 'Decision'
+      }
+    }
+  }
+]);
+```
+
+### Shape Configuration
+
+Shape nodes accept a comprehensive configuration object:
+
+```typescript
+interface ShapeConfig {
+  type: ShapeType;                    // Required: shape type
+  backgroundColor?: string;           // Fill color
+  strokeColor?: string;              // Border color
+  strokeWidth?: number;              // Border width (default: 2)
+  size?: { width: number; height: number }; // Custom size
+  rotation?: number;                 // Rotation in degrees
+  label?: string;                    // Display label
+}
+```
+
+### Advanced Configuration
+
+For more advanced styling, you can use the extended configuration:
+
+```javascript
+{
+  id: 'advanced-shape',
+  type: 'shape',
+  position: { x: 500, y: 100 },
+  data: {
+    type: 'shape',
+    data: {
+      type: 'hexagon',
+      backgroundColor: '#8b5cf6',
+      strokeColor: '#7c3aed',
+      strokeWidth: 3,
+      size: { width: 150, height: 150 },
+      rotation: 15,
+      label: 'Process',
+      gradient: {
+        type: 'radial',
+        colors: ['#8b5cf6', '#a78bfa', '#c4b5fd']
+      }
+    }
+  }
+}
+```
+
+### Shape Registry API
+
+The Shape Registry allows you to extend the system with custom shapes:
+
+```javascript
+import { ShapeRegistry } from 'lit-flow';
+
+// Register a custom shape
+ShapeRegistry.register({
+  type: 'star',
+  name: 'Star',
+  category: 'symbolic',
+  path: 'M 50 5 L 61 35 L 95 35 L 68 57 L 79 91 L 50 70 L 21 91 L 32 57 L 5 35 L 39 35 Z',
+  viewBox: '0 0 100 100',
+  defaultSize: { width: 100, height: 100 },
+  centerPoint: { x: 50, y: 50 }
+});
+
+// Get all available shapes
+const allShapes = ShapeRegistry.getAll();
+
+// Get shapes by category
+const basicShapes = ShapeRegistry.getByCategory('basic');
+```
+
+### Shape Node Properties
+
+#### `<shape-node>`
+
+Shape node component with the following properties:
+
+**Properties:**
+- `id` (String): Unique identifier
+- `data` (Object): Shape configuration data
+- `position` (Object): { x, y } position
+- `selected` (Boolean): Selection state
+- `draggable` (Boolean): Enable/disable dragging
+- `connectable` (Boolean): Show/hide connection handles
+
+**Events:**
+- `node-select` - Fired when node is selected/deselected
+- `handle-start` - Fired when connection handle is activated
+
+### Complete Shape Example
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/lit-flow/dist/lit-flow.js"></script>
+</head>
+<body>
+  <flow-canvas id="flow" nodeTypes='{"shape": "shape-node"}'>
+    <flow-background variant="dots"></flow-background>
+    <flow-controls></flow-controls>
+    
+    <script type="module">
+      import './src/components/shapes/shape-node.ts';
+      
+      const flowCanvas = document.getElementById('flow');
+      
+      customElements.whenDefined('flow-canvas').then(() => {
+        // Create a flowchart with different shapes
+        flowCanvas.instance.setNodes([
+          {
+            id: 'start',
+            type: 'shape',
+            position: { x: 100, y: 50 },
+            data: {
+              type: 'shape',
+              data: {
+                type: 'circle',
+                backgroundColor: '#10b981',
+                strokeColor: '#059669',
+                label: 'Start'
+              }
+            }
+          },
+          {
+            id: 'process',
+            type: 'shape',
+            position: { x: 300, y: 50 },
+            data: {
+              type: 'shape',
+              data: {
+                type: 'rectangle',
+                backgroundColor: '#3b82f6',
+                strokeColor: '#1e40af',
+                size: { width: 150, height: 80 },
+                label: 'Process Data'
+              }
+            }
+          },
+          {
+            id: 'decision',
+            type: 'shape',
+            position: { x: 500, y: 50 },
+            data: {
+              type: 'shape',
+              data: {
+                type: 'diamond',
+                backgroundColor: '#f59e0b',
+                strokeColor: '#d97706',
+                size: { width: 120, height: 120 },
+                label: 'Valid?'
+              }
+            }
+          },
+          {
+            id: 'end',
+            type: 'shape',
+            position: { x: 700, y: 50 },
+            data: {
+              type: 'shape',
+              data: {
+                type: 'circle',
+                backgroundColor: '#ef4444',
+                strokeColor: '#dc2626',
+                label: 'End'
+              }
+            }
+          }
+        ]);
+
+        // Connect the shapes
+        flowCanvas.instance.setEdges([
+          { id: 'e1', source: 'start', target: 'process' },
+          { id: 'e2', source: 'process', target: 'decision' },
+          { id: 'e3', source: 'decision', target: 'end' }
+        ]);
+      });
+    </script>
+  </flow-canvas>
+</body>
+</html>
+```
+
 ### Available Node Types
 
 lit-flow includes several built-in node types:
 
 - **`default`** - Basic rectangular node (default)
+- **`shape`** - Geometric shape nodes with SVG rendering
 - **`erd-table`** - Database table with field-level handles
 - **Custom types** - Any registered custom component
 
