@@ -20,7 +20,7 @@ export type Node<
   NodeData extends Record<string, unknown> = Record<string, unknown>,
   NodeType extends string | undefined = string | undefined
 > = NodeBase<NodeData, NodeType> & {
-  type?: string; // 'default', 'erd-table', 'custom', etc.
+  type?: string; // 'default', 'shape', 'erd-table', 'custom', etc.
 };
 
 // Lit-specific edge type (extends system EdgeBase)

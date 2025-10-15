@@ -16,6 +16,8 @@ export { FlowBackground } from './components/flow-background';
 export { FlowMinimap } from './components/flow-minimap';
 export { FlowControls } from './components/flow-controls';
 export { ERDTableNode } from './components/ui/erd-table-node';
+export { ShapeNode } from './components/shapes/shape-node';
+export { ShapeRegistry } from './components/shapes/shape-registry';
 export {
   BaseNode,
   BaseNodeHeader,
@@ -37,6 +39,14 @@ export type {
   NodeChange,
   EdgeChange,
 } from './core/types';
+
+export type {
+  ShapeType,
+  ShapeConfig,
+  ShapeDefinition,
+  AdvancedShapeConfig,
+  ShapeNodeData,
+} from './components/shapes/types';
 
 export type { BackgroundVariant } from './components/flow-background';
 export type { ERDField, ERDTableData } from './components/ui/erd-table-node';

@@ -128,6 +128,8 @@ export class FlowInstance {
   }
 
   updateNode(id: string, updates: Partial<Node>) {
+    console.log('updateNode', id, updates);
+    console.log('state.nodes', this.state.nodes);
     this.state.nodes = this.state.nodes.map(node => 
       node.id === id ? { ...node, ...updates } : node
     );

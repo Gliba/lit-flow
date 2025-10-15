@@ -93,7 +93,11 @@ export class FlowCanvas extends LitElement {
   @property({ type: Object }) viewport: Viewport = { x: 0, y: 0, zoom: 1 };
   
   // Node type registry (maps type name to tag name)
-  @property({ type: Object }) nodeTypes: Record<string, string> = {};
+  @property({ type: Object }) nodeTypes: Record<string, string> = {
+    'default': 'flow-node',
+    'shape': 'shape-node',
+    'erd-table': 'erd-table-node'
+  };
 
   private connection: { 
     from?: { nodeId: string; handleId?: string }; 
@@ -321,6 +325,7 @@ export class FlowCanvas extends LitElement {
         .position=${node.position}
         .selected=${node.selected || false}
         .draggable=${node.draggable !== false}
+        .connectable=${node.connectable !== false}
         .instance=${this.instance}
         @handle-start=${this.onHandleStart}
       ></${tag}>
@@ -420,11 +425,9 @@ export class FlowCanvas extends LitElement {
 
   private onHandleStart = (e: CustomEvent<{ nodeId: string; type: 'source' | 'target'; handleId?: string }>) => {
     const { nodeId, type, handleId } = e.detail;
-    if (type === 'source') {
-      this.connection = { from: { nodeId, handleId } };
-    } else {
-      this.connection = { to: { nodeId, handleId } };
-    }
+    // Always start a connection FROM this handle, regardless of its type
+    // The handle type will be determined by the connection direction
+    this.connection = { from: { nodeId, handleId } };
   };
 
   private onMouseMove = (e: MouseEvent) => {
@@ -458,6 +461,7 @@ export class FlowCanvas extends LitElement {
     }
     const targetId = targetEl?.getAttribute('id') || undefined;
 
+    // Handle connection completion - always from a source handle to a target handle
     if (this.connection.from && targetId && targetId !== this.connection.from.nodeId) {
       const newEdgeId = `e-${this.connection.from.nodeId}-${targetId}-${Date.now()}`;
       this.instance.addEdge({ 
@@ -466,18 +470,6 @@ export class FlowCanvas extends LitElement {
         target: targetId, 
         sourceHandle: this.connection.from.handleId,
         targetHandle: targetHandleId,
-        data: {} 
-      });
-    }
-
-    if (this.connection.to && targetId && targetId !== this.connection.to.nodeId) {
-      const newEdgeId = `e-${targetId}-${this.connection.to.nodeId}-${Date.now()}`;
-      this.instance.addEdge({ 
-        id: newEdgeId, 
-        source: targetId, 
-        target: this.connection.to.nodeId, 
-        sourceHandle: targetHandleId,
-        targetHandle: this.connection.to.handleId,
         data: {} 
       });
     }

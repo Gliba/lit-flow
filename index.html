@@ -67,6 +67,7 @@
       <h1>🌊 lit-flow</h1>
       <div class="controls">
         <button id="add-node">Add Node</button>
+        <button id="add-shape">Add Shape</button>
         <button id="fit-view">Fit View</button>
         <button id="toggle-theme">Toggle Theme</button>
         <div id="selection-info" style="margin-left: 1rem; font-size: 0.875rem; color: #666;">No selection</div>
@@ -84,6 +85,7 @@
     <script type="module">
       import './src/index.ts';
       import './examples/base-demo-node.ts';
+      import './src/components/shapes/shape-node.ts';
 
       const flowCanvas = document.getElementById('flow');
       const flowControls = document.getElementById('controls');
@@ -91,8 +93,10 @@
       let isDark = false;
 
       flowCanvas.nodeTypes = {
+        'default': 'flow-node',
         'erd-table': 'erd-table-node',
-        'base-demo': 'base-demo-node'
+        'base-demo': 'base-demo-node',
+        'shape': 'shape-node'
       };
 
       // Wait for components to be ready
@@ -145,7 +149,24 @@
             data: { label: 'Default Node' },
             width: 150,
             height: 50
-          }
+          },
+          {
+            id: 'shape-1',
+            type: 'shape',
+            position: { x: 200, y: 320 },
+            data: {
+                type: 'shape',
+                data: {
+                    type: 'circle',
+                    color: '#cccccc',
+                    size: { width: 120, height: 120 },
+                    strokeColor: '#000000',
+                    strokeWidth: 2,
+                    label: 'Start Node'
+                }
+            },
+            connectable: true
+        }
         ]);
 
         flowCanvas.instance.setEdges([
@@ -183,6 +204,35 @@
             data: { label: `Node ${nodeCount}` },
             width: 150,
             height: 50
+          });
+        });
+
+        // Add shape button
+        document.getElementById('add-shape').addEventListener('click', () => {
+          const shapes = ['circle', 'rectangle', 'diamond', 'triangle', 'hexagon', 'octagon', 'heart'];
+          const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+          const colors = ['#ff0071', '#1a73e8', '#00ff00', '#ff6600', '#9900ff', '#ff0000', '#00ffff'];
+          const color = colors[Math.floor(Math.random() * colors.length)];
+          
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `shape-${nodeCount}`,
+            type: 'shape',
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: {
+              type: 'shape',
+              data: {
+                type: randomShape,
+                color: color,
+                size: { width: 160, height: 160 },
+                strokeColor: '#000000',
+                strokeWidth: 2
+                // No label specified - will default to shape type
+              }
+            }
           });
         });
 
