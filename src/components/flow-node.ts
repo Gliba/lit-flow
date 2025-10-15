@@ -23,6 +23,7 @@ export class FlowNode extends LitElement {
       transition: box-shadow 0.2s;
       transform-origin: 0 0;
       will-change: transform;
+      pointer-events: auto;
     }
 
     :host([dragging]) {
@@ -104,6 +105,22 @@ export class FlowNode extends LitElement {
       // Toggle selection
       const newSelected = !this.selected;
       this.instance.updateNode(this.id, { selected: newSelected });
+      
+      // Dispatch selection event
+      this.dispatchEvent(new CustomEvent('node-select', {
+        detail: { 
+          nodeId: this.id, 
+          selected: newSelected,
+          node: {
+            id: this.id,
+            data: this.data,
+            position: this.position,
+            selected: newSelected
+          }
+        },
+        bubbles: true,
+        composed: true
+      }));
     }
   };
 

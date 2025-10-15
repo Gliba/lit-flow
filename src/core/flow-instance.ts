@@ -135,6 +135,14 @@ export class FlowInstance {
     this.notifySubscribers();
   }
 
+  updateEdge(id: string, updates: Partial<Edge>) {
+    this.state.edges = this.state.edges.map(edge => 
+      edge.id === id ? { ...edge, ...updates } : edge
+    );
+    this.updateLookups();
+    this.notifySubscribers();
+  }
+
   addNode(node: Node) {
     this.state.nodes = [...this.state.nodes, node];
     this.updateLookups();

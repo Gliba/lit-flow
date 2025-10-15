@@ -28,6 +28,7 @@ export {
 export type {
   Node,
   Edge,
+  EdgeType,
   XYPosition,
   FlowOptions,
   FlowState,

@@ -52,6 +52,7 @@ export class FlowCanvas extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
+      pointer-events: none;
     }
 
     .flow-edges-layer {
@@ -60,7 +61,7 @@ export class FlowCanvas extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none;
+       pointer-events: none;
     }
 
     .flow-labels-overlay {
@@ -100,70 +101,7 @@ export class FlowCanvas extends LitElement {
     preview?: { x: number; y: number } 
   } | null = null;
 
-  // Marker registry: normalizedKey -> id
-  private markerRegistry = new Map<string, string>();
-  private markerDefs: Array<{ id: string; svg: string }> = [];
-  private markerHandleHalf = 5; // half of node handle diameter (10px)
 
-  private getMarkerId(spec: MarkerSpec | string | undefined): string | undefined {
-    if (!spec) return undefined;
-    if (typeof spec === 'string') return spec;
-    const key = this.normalizeMarkerSpec(spec);
-    const existing = this.markerRegistry.get(key);
-    if (existing) return existing;
-    const id = `marker-${this.hashString(key)}`;
-    const svg = this.createMarkerSVG(id, spec);
-    this.markerRegistry.set(key, id);
-    this.markerDefs.push({ id, svg });
-    return id;
-  }
-
-  private getMarkerSVGById(id?: string): string | undefined {
-    if (!id) return undefined;
-    const def = this.markerDefs.find((d) => d.id === id);
-    return def?.svg;
-  }
-
-  private normalizeMarkerSpec(spec: MarkerSpec): string {
-    if (spec.type === 'custom') {
-      const { path, width = 20, height = 20, refX = 20, refY = 10, orient = 'auto', color = 'currentColor' } = spec;
-      return `custom|p=${path}|w=${width}|h=${height}|rx=${refX}|ry=${refY}|o=${orient}|c=${color}`;
-    }
-    const { width = 20, height = 20, orient = 'auto', color = 'currentColor' } = spec;
-    return `builtin|${spec.type}|w=${width}|h=${height}|o=${orient}|c=${color}`;
-  }
-
-  private hashString(input: string): string {
-    let h = 0;
-    for (let i = 0; i < input.length; i++) h = (h << 5) - h + input.charCodeAt(i), h |= 0;
-    return Math.abs(h).toString(36);
-  }
-
-  private createMarkerSVG(id: string, spec: MarkerSpec): string {
-    if (spec.type === 'custom') {
-      const width = spec.width ?? 10;
-      const height = spec.height ?? 10;
-      const refX = (spec.refX ?? width) + this.markerHandleHalf;
-      const refY = spec.refY ?? height / 2;
-      const color = spec.color ?? 'currentColor';
-      const orient = spec.orient ?? 'auto';
-      return `<marker id="${id}" markerWidth="${width}" markerHeight="${height}" refX="${refX}" refY="${refY}" orient="${orient}" markerUnits="userSpaceOnUse"><path d="${spec.path}" fill="${color}" stroke="${color}"/></marker>`;
-    }
-    const width = spec.width ?? 10;
-    const height = spec.height ?? 10;
-    const orient = spec.orient ?? 'auto';
-    const color = spec.color ?? 'currentColor';
-    const refX = (spec.type === 'ArrowClosed' ? width : width) + this.markerHandleHalf;
-    const refY = height / 2;
-    if (spec.type === 'ArrowClosed') {
-      // Triangle pointing right with tip at (width, height/2)
-      const path = `M0,0 L${width},${refY} L0,${height} Z`;
-      return `<marker id="${id}" markerWidth="${width}" markerHeight="${height}" refX="${refX}" refY="${refY}" orient="${orient}" markerUnits="userSpaceOnUse"><path d="${path}" fill="${color}"/></marker>`;
-    }
-    // Arrow (open) -> V shape stroke
-    const path = `M0,0 L${width},${refY} L0,${height}`;
-    return `<marker id="${id}" markerWidth="${width}" markerHeight="${height}" refX="${refX}" refY="${refY}" orient="${orient}" markerUnits="userSpaceOnUse"><path d="${path}" fill="none" stroke="${color}" stroke-width="2"/></marker>`;
-  }
 
   private getNodeGeom(nodeId: string): { left: { x: number; y: number }; right: { x: number; y: number } } | null {
     const el = this.renderRoot.querySelector(`flow-node[id="${CSS.escape(nodeId)}"]`) as HTMLElement | null;
@@ -345,6 +283,11 @@ export class FlowCanvas extends LitElement {
       });
       container.addEventListener('mousemove', this.onMouseMove);
       window.addEventListener('mouseup', this.onMouseUp);
+      
+      // Add selection event listeners
+      container.addEventListener('node-select', this.onNodeSelect as EventListener);
+      // Edge events come from light DOM, so listen on document
+      document.addEventListener('edge-select', this.onEdgeSelect as EventListener);
     }
   }
 
@@ -355,6 +298,8 @@ export class FlowCanvas extends LitElement {
     const container = this.renderRoot.querySelector('.flow-container') as HTMLElement | null;
     container?.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('mouseup', this.onMouseUp);
+    container?.removeEventListener('node-select', this.onNodeSelect as EventListener);
+    document.removeEventListener('edge-select', this.onEdgeSelect as EventListener);
   }
 
   /**
@@ -393,21 +338,12 @@ export class FlowCanvas extends LitElement {
           style=${styleMap({ transform })}
         >
           <div class="flow-edges-layer">
-            <svg style="position:absolute;top:0;left:0;width:0;height:0;overflow:visible">
-              <defs>
-                ${this.markerDefs.map(def => unsafeSVG(def.svg))}
-              </defs>
-            </svg>
             ${this.edges.map(edge => {
               const sourceNode = this.nodes.find(n => n.id === edge.source);
               const targetNode = this.nodes.find(n => n.id === edge.target);
               
               if (!sourceNode || !targetNode) return null;
               
-              const markerStartId = this.getMarkerId(edge.markerStart as any);
-              const markerEndId = this.getMarkerId(edge.markerEnd as any);
-              const markerStartDef = this.getMarkerSVGById(markerStartId);
-              const markerEndDef = this.getMarkerSVGById(markerEndId);
               return html`
                 <flow-edge 
                   .id=${edge.id}
@@ -419,10 +355,9 @@ export class FlowCanvas extends LitElement {
                   .targetNode=${targetNode}
                   .animated=${edge.animated || false}
                   .label=${(edge as any).label || ''}
-                  .markerStartId=${markerStartId}
-                  .markerEndId=${markerEndId}
-                  .markerStartDef=${markerStartDef}
-                  .markerEndDef=${markerEndDef}
+                  .type=${edge.type || 'default'}
+                  .markerStart=${edge.markerStart}
+                  .markerEnd=${edge.markerEnd}
                 ></flow-edge>
               `;
             })}
@@ -549,6 +484,44 @@ export class FlowCanvas extends LitElement {
 
     this.connection = null;
     this.requestUpdate();
+  };
+
+  private onNodeSelect = (e: CustomEvent<{ nodeId: string; selected: boolean; node: any }>) => {
+    const { nodeId, selected, node } = e.detail;
+    
+    // Update the node selection state in the instance
+    this.instance.updateNode(nodeId, { selected });
+    
+    // Dispatch a higher-level selection event from flow-canvas
+    this.dispatchEvent(new CustomEvent('node-selected', {
+      detail: {
+        nodeId,
+        selected,
+        node,
+        allSelectedNodes: this.nodes.filter(n => n.selected)
+      },
+      bubbles: true,
+      composed: true
+    }));
+  };
+
+  private onEdgeSelect = (e: CustomEvent<{ edgeId: string; selected: boolean; edge: any }>) => {
+    const { edgeId, selected, edge } = e.detail;
+    
+    // Update the edge selection state in the instance
+    this.instance.updateEdge(edgeId, { selected });
+    
+    // Dispatch a higher-level selection event from flow-canvas
+    this.dispatchEvent(new CustomEvent('edge-selected', {
+      detail: {
+        edgeId,
+        selected,
+        edge,
+        allSelectedEdges: this.edges.filter(e => e.selected)
+      },
+      bubbles: true,
+      composed: true
+    }));
   };
 
   private renderPreviewEdge() {

@@ -69,6 +69,7 @@
         <button id="add-node">Add Node</button>
         <button id="fit-view">Fit View</button>
         <button id="toggle-theme">Toggle Theme</button>
+        <div id="selection-info" style="margin-left: 1rem; font-size: 0.875rem; color: #666;">No selection</div>
       </div>
     </header>
 
@@ -152,6 +153,7 @@
             id: 'e-users-posts',
             source: 'users-table',
             target: 'posts-table',
+            type: 'smoothstep',
             sourceHandle: 'users-table-id-right',
             targetHandle: 'posts-table-user_id-left',
             data: { 
@@ -200,14 +202,19 @@
           }
         });
 
-        // Log state changes
-        flowCanvas.instance.subscribe((state) => {
-          console.log('Flow state updated:', {
-            nodes: state.nodes.length,
-            edges: state.edges.length,
-            viewport: state.viewport
-          });
+        // Selection event listeners
+        flowCanvas.addEventListener('node-selected', (e) => {
+          console.log('Node selected:', e.detail);
+          document.getElementById('selection-info').textContent = 
+            `Selected: ${e.detail.selected ? e.detail.nodeId : 'none'} | Total selected nodes: ${e.detail.allSelectedNodes?.length || 0}`;
         });
+
+        flowCanvas.addEventListener('edge-selected', (e) => {
+          console.log('Edge selected:', e.detail);
+          document.getElementById('selection-info').textContent = 
+            `Selected edge: ${e.detail.selected ? e.detail.edgeId : 'none'} | Total selected edges: ${e.detail.allSelectedEdges?.length || 0}`;
+        });
+
       });
     </script>
   </body>
