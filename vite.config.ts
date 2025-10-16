@@ -14,13 +14,8 @@ export default defineConfig({
       formats: ['es', 'umd'],
     },
     rollupOptions: {
-      external: ['lit', '@xyflow/system'],
-      output: {
-        globals: {
-          lit: 'Lit',
-          '@xyflow/system': 'XyflowSystem',
-        },
-      },
+      external: [],
+      output: {},
     },
   },
   plugins: [

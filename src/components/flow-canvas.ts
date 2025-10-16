@@ -5,11 +5,10 @@
 
 import { LitElement, css } from 'lit';
 import { html, svg, unsafeStatic } from 'lit/static-html.js';
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { FlowInstance } from '../core/flow-instance';
-import type { Node, Edge, Viewport, MarkerSpec } from '../core/types';
+import type { Node, Edge, Viewport } from '../core/types';
 import { getBezierPath, Position } from '../utils/geometry';
 
 @customElement('flow-canvas')
