@@ -83,7 +83,8 @@
     </main>
 
     <script type="module">
-      import './dist/lit-flow.js';
+      // import './dist/lit-flow.js';
+      import './src/index.ts';
 
       const flowCanvas = document.getElementById('flow');
       const flowControls = document.getElementById('controls');
@@ -102,91 +103,45 @@
         // Connect controls to flow instance
         flowControls.instance = flowCanvas.instance;
 
-        // Initialize with sample nodes and edges
-        flowCanvas.instance.setNodes([
-          {
-            id: 'users-table',
-            type: 'erd-table',
-            position: { x: 100, y: 100 },
-            data: {
-              tableName: 'users',
-              color: '#3b82f6',
-              fields: [
-                { name: 'id', type: 'INT', key: 'PK' },
-                { name: 'email', type: 'VARCHAR(255)', key: 'UK' },
-                { name: 'username', type: 'VARCHAR(100)' },
-                { name: 'created_at', type: 'TIMESTAMP' },
-              ]
-            }
-          },
-          {
-            id: 'posts-table',
-            type: 'erd-table',
-            position: { x: 500, y: 100 },
-            data: {
-              tableName: 'posts',
-              color: '#8b5cf6',
-              fields: [
-                { name: 'id', type: 'INT', key: 'PK' },
-                { name: 'user_id', type: 'INT', key: 'FK' },
-                { name: 'title', type: 'VARCHAR(255)' },
-                { name: 'content', type: 'TEXT', nullable: true },
-                { name: 'published_at', type: 'TIMESTAMP', nullable: true },
-              ]
-            }
-          },
-          {
-            id: 'base-demo-1',
-            type: 'base-demo',
-            position: { x: 300, y: 320 },
-            data: { title: 'Base Demo', subtitle: 'Composable', content: 'This node uses Base UI wrappers.' }
-          },
-          {
-            id: 'node-1',
-            position: { x: 100, y: 320 },
-            data: { label: 'Default Node' },
-            width: 150,
-            height: 50
-          },
+        // Set nodes first - they will be registered as pending
+        flowCanvas.setNodes([
           {
             id: 'shape-1',
             type: 'shape',
-            position: { x: 200, y: 320 },
+            position: { x: 100, y: 100 },
             data: {
-                type: 'shape',
-                data: {
-                    type: 'circle',
-                    color: '#cccccc',
-                    size: { width: 120, height: 120 },
-                    strokeColor: '#000000',
-                    strokeWidth: 2,
-                    label: 'Start Node'
-                }
-            },
-            connectable: true
-        }
-        ]);
-
-        flowCanvas.instance.setEdges([
-          {
-            id: 'e-users-posts',
-            source: 'users-table',
-            target: 'posts-table',
-            type: 'smoothstep',
-            sourceHandle: 'users-table-id-right',
-            targetHandle: 'posts-table-user_id-left',
-            data: { 
-              labelHtml: '1:N',
-            },
-            markerEnd: { type: 'ArrowClosed', color: '#6b7280' }
+              type: 'rectangle',
+              color: 'blue',
+              size: { width: 200, height: 200 },
+              strokeColor: '#000000',
+              strokeWidth: 2,
+              label: 'Start Node'
+            }
           },
           {
-            id: 'e-default-to-base',
-            source: 'node-1',
-            target: 'base-demo-1',
-            targetHandle: 'base-demo-1-in',
-            data: { labelHtml: 'Default → Base' },
-            markerEnd: { type: 'ArrowClosed', color: '#9ca3af' }
+            id: 'shape-2',
+            type: 'shape',
+            position: { x: 400, y: 100 },
+            data: {
+              type: 'diamond',
+              color: 'red',
+              size: { width: 220, height: 220 },
+              strokeColor: '#000000',
+              strokeWidth: 2,
+              label: 'End Node'
+            }
+          }
+        ]);
+
+        // Set edges - will automatically retry if nodes are still pending
+        flowCanvas.setEdges([
+          {
+            id: 'edge-1',
+            source: 'shape-1',
+            target: 'shape-2',
+            sourceHandle: 'shape-1-source-right',
+            targetHandle: 'shape-2-target-left',
+            animated: true
           }
         ]);
 
@@ -221,15 +176,12 @@
               y: Math.random() * 300 + 100 
             },
             data: {
-              type: 'shape',
-              data: {
-                type: randomShape,
-                color: color,
-                size: { width: 160, height: 160 },
-                strokeColor: '#000000',
-                strokeWidth: 2
-                // No label specified - will default to shape type
-              }
+              type: randomShape,
+              color: color,
+              size: { width: 160, height: 160 },
+              strokeColor: '#000000',
+              strokeWidth: 2
+              // No label specified - will default to shape type
             }
           });
         });

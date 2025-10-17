@@ -55,3 +55,6 @@ export interface ShapeNodeData {
   type: 'shape';
   data: ShapeConfig | AdvancedShapeConfig;
 }
+
+// For when the shape config is passed directly as data
+export type ShapeNodeDataDirect = ShapeConfig | AdvancedShapeConfig;

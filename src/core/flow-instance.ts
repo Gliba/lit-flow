@@ -19,6 +19,9 @@ export class FlowInstance {
   private subscribers: Set<(state: FlowState) => void> = new Set();
   private panZoomInstance: ReturnType<typeof XYPanZoom> | null = null;
   private options: FlowOptions;
+  
+  // Track nodes that are pending rendering
+  private pendingNodes: string[] = [];
 
   constructor(options: FlowOptions = {}) {
     this.options = {
@@ -116,15 +119,16 @@ export class FlowInstance {
   }
 
   setNodes(nodes: Node[]) {
+    // Register all node IDs as pending
+    this.pendingNodes.push(...nodes.map(node => node.id));
+    
     this.state.nodes = nodes;
     this.updateLookups();
     this.notifySubscribers();
   }
 
   setEdges(edges: Edge[]) {
-    this.state.edges = edges;
-    this.updateLookups();
-    this.notifySubscribers();
+    this.retryEdgeRendering(edges);
   }
 
   updateNode(id: string, updates: Partial<Node>) {
@@ -248,6 +252,57 @@ export class FlowInstance {
     this.state.edges.forEach(edge => {
       this.state.edgeLookup.set(edge.id, edge);
     });
+  }
+
+  /**
+   * Check if a node is fully rendered
+   */
+  private isNodeRendered(nodeId: string): boolean {
+    if (!this.container) return false;
+    const nodeEl = this.container.querySelector(`[id="${CSS.escape(nodeId)}"]`) as HTMLElement | null;
+    if (!nodeEl) return false;
+    
+    const rect = nodeEl.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  /**
+   * Check if any of the required nodes are still pending
+   */
+  private hasPendingNodes(nodeIds: string[]): boolean {
+    return nodeIds.some(id => this.pendingNodes.includes(id) || !this.isNodeRendered(id));
+  }
+
+  /**
+   * Remove node from pending list when it's rendered
+   */
+  private markNodeAsRendered(nodeId: string) {
+    const index = this.pendingNodes.indexOf(nodeId);
+    if (index > -1) {
+      this.pendingNodes.splice(index, 1);
+    }
+  }
+
+  /**
+   * Retry edge rendering with delay if nodes are still pending
+   */
+  private retryEdgeRendering(edges: Edge[], retryCount: number = 0, maxRetries: number = 10) {
+    const allNodeIds = edges.flatMap(edge => [edge.source, edge.target]);
+    const uniqueNodeIds = [...new Set(allNodeIds)];
+    
+    if (this.hasPendingNodes(uniqueNodeIds) && retryCount < maxRetries) {
+      setTimeout(() => {
+        this.retryEdgeRendering(edges, retryCount + 1, maxRetries);
+      }, 100);
+    } else {
+      // All nodes are rendered, proceed with edge rendering
+      this.state.edges = edges;
+      this.updateLookups();
+      this.notifySubscribers();
+      
+      // Mark nodes as rendered
+      uniqueNodeIds.forEach(id => this.markNodeAsRendered(id));
+    }
   }
 
   private notifySubscribers() {

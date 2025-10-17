@@ -143,7 +143,13 @@ export class FlowCanvas extends LitElement {
     const node = this.nodes.find(n => n.id === nodeId);
     if (!node) return null;
 
-    // Calculate handle offset within node
+    // For shape nodes, calculate handle position based on shape size and handle type
+    if (node.type === 'shape') {
+      console.log('getHandleCanvasPosition for shape node:', { nodeId, handleId, node });
+      return this.getShapeHandlePosition(node, handleId);
+    }
+
+    // For regular nodes, use the existing method
     const nodeRect = nodeEl.getBoundingClientRect();
     const handleRect = handleEl.getBoundingClientRect();
     const zoom = this.viewport.zoom || 1;
@@ -155,6 +161,114 @@ export class FlowCanvas extends LitElement {
       x: node.position.x + offsetX,
       y: node.position.y + offsetY
     };
+  }
+
+  /**
+   * Get handle position for shape nodes based on shape size and handle type
+   */
+  private getShapeHandlePosition(node: any, handleId: string): { x: number; y: number } | null {
+    const shapeData = node.data;
+    if (!shapeData) return null;
+
+    const size = shapeData.size || { width: 200, height: 200 };
+    const width = size.width;
+    const height = size.height;
+
+    // Parse handle ID to determine position
+    // Handle IDs are like: "shape-1-source-right", "shape-1-target-left", etc.
+    const parts = handleId.split('-');
+    const handleType = parts[parts.length - 1]; // Get last part (right, left, top, bottom)
+    
+    console.log('getShapeHandlePosition:', { handleId, parts, handleType, node: node.id, size });
+    
+    let offsetX = 0;
+    let offsetY = 0;
+
+    switch (handleType) {
+      case 'right':
+        offsetX = width;
+        offsetY = height / 2;
+        break;
+      case 'left':
+        offsetX = 0;
+        offsetY = height / 2;
+        break;
+      case 'top':
+        offsetX = width / 2;
+        offsetY = 0;
+        break;
+      case 'bottom':
+        offsetX = width / 2;
+        offsetY = height;
+        break;
+      default:
+        // Fallback to center
+        offsetX = width / 2;
+        offsetY = height / 2;
+    }
+
+    const result = {
+      x: node.position.x + offsetX,
+      y: node.position.y + offsetY
+    };
+    
+    console.log('getShapeHandlePosition result:', { 
+      nodeId: node.id, 
+      position: node.position, 
+      offsetX, 
+      offsetY, 
+      result 
+    });
+    
+    return result;
+  }
+
+  setNodes(nodes: Node[]) {
+    this.instance.setNodes(nodes);
+  }
+
+  setEdges(edges: Edge[]) {
+    this.instance.setEdges(edges);
+  }
+
+  /**
+   * Determine the best target handle for a shape node based on connection direction
+   */
+  private determineBestTargetHandle(sourceNodeId: string, targetNodeId: string): string {
+    const sourceNode = this.nodes.find(n => n.id === sourceNodeId);
+    const targetNode = this.nodes.find(n => n.id === targetNodeId);
+    
+    if (!sourceNode || !targetNode) return `${targetNodeId}-target-left`;
+    
+    // Calculate relative positions
+    const sourceX = sourceNode.position.x;
+    const sourceY = sourceNode.position.y;
+    const targetX = targetNode.position.x;
+    const targetY = targetNode.position.y;
+    
+    // Get target node dimensions
+    const targetData = targetNode.data as any;
+    const targetWidth = targetData?.size?.width || 200;
+    const targetHeight = targetData?.size?.height || 200;
+    
+    // Calculate center positions
+    const sourceCenterX = sourceX + (sourceNode.width || 150) / 2;
+    const sourceCenterY = sourceY + (sourceNode.height || 50) / 2;
+    const targetCenterX = targetX + targetWidth / 2;
+    const targetCenterY = targetY + targetHeight / 2;
+    
+    // Determine connection direction
+    const deltaX = targetCenterX - sourceCenterX;
+    const deltaY = targetCenterY - sourceCenterY;
+    
+    // Choose target handle based on direction
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      // Horizontal connection
+      return deltaX > 0 ? `${targetNodeId}-target-left` : `${targetNodeId}-target-right`;
+    } else {
+      // Vertical connection
+      return deltaY > 0 ? `${targetNodeId}-target-top` : `${targetNodeId}-target-bottom`;
+    }
   }
 
   private computeLabelCanvasPosition(edge: Edge): { x: number; y: number } | null {
@@ -463,12 +577,26 @@ export class FlowCanvas extends LitElement {
     // Handle connection completion - always from a source handle to a target handle
     if (this.connection.from && targetId && targetId !== this.connection.from.nodeId) {
       const newEdgeId = `e-${this.connection.from.nodeId}-${targetId}-${Date.now()}`;
+      const sourceNodeId = this.connection.from.nodeId;
+      const sourceHandleId = this.connection.from.handleId;
+      
+      // If no target handle was found, determine the best target handle for shape nodes
+      let finalTargetHandleId = targetHandleId;
+      if (!finalTargetHandleId) {
+        const targetNode = this.nodes.find(n => n.id === targetId);
+        if (targetNode && targetNode.type === 'shape') {
+          finalTargetHandleId = this.determineBestTargetHandle(sourceNodeId, targetId);
+          console.log('Auto-determined target handle:', { sourceNodeId, targetId, finalTargetHandleId });
+        }
+      }
+      
+      // Use the instance method which handles retry logic automatically
       this.instance.addEdge({ 
         id: newEdgeId, 
-        source: this.connection.from.nodeId, 
+        source: sourceNodeId, 
         target: targetId, 
-        sourceHandle: this.connection.from.handleId,
-        targetHandle: targetHandleId,
+        sourceHandle: sourceHandleId,
+        targetHandle: finalTargetHandleId,
         data: {} 
       });
     }

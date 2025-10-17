@@ -173,7 +173,7 @@ export class FlowNode extends LitElement {
     setTimeout(() => {
       this.isDragging = false;
       this.dragging = false;
-    }, 0);
+    }, 50);
   };
 
   private cleanup() {

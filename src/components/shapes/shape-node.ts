@@ -5,7 +5,7 @@
 
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { ShapeNodeData } from './types';
+import type { ShapeNodeData, ShapeNodeDataDirect } from './types';
 import { ShapeRegistry } from './shape-registry';
 
 @customElement('shape-node')
@@ -161,7 +161,7 @@ export class ShapeNode extends LitElement {
   `;
 
   @property({ type: String, reflect: true }) id = '';
-  @property({ type: Object }) data!: ShapeNodeData;
+  @property({ type: Object }) data!: ShapeNodeDataDirect;
   @property({ 
     type: Object, 
     hasChanged: (newVal: { x: number; y: number }, oldVal: { x: number; y: number }) => {
@@ -192,7 +192,10 @@ export class ShapeNode extends LitElement {
    * Get the shape definition from the registry
    */
   private getShapeDefinition() {
-    return ShapeRegistry.get(this.data.data.type);
+    if (!this.data?.type) {
+      return undefined;
+    }
+    return ShapeRegistry.get(this.data.type);
   }
 
   /**
@@ -203,12 +206,12 @@ export class ShapeNode extends LitElement {
     if (!shapeDef) {
       return html`
         <div class="unknown-shape">
-          Unknown shape: ${this.data.data.type}
+          Unknown shape: ${this.data?.type || 'undefined'}
         </div>
       `;
     }
 
-    const config = this.data.data;
+    const config = this.data;
     const size = config.size || shapeDef.defaultSize;
     const fillColor = config.backgroundColor || config.color || '#ffffff';
     const strokeColor = config.strokeColor || '#000000';
@@ -237,9 +240,9 @@ export class ShapeNode extends LitElement {
    * Render gradient definitions if needed
    */
   private renderGradients() {
-    const config = this.data.data;
-    if ('gradient' in config && config.gradient) {
-      const gradientId = `gradient-${this.data.data.type}-${Math.random().toString(36).substr(2, 9)}`;
+    const config = this.data;
+    if (config && 'gradient' in config && config.gradient) {
+      const gradientId = `gradient-${this.data.type}-${Math.random().toString(36).substr(2, 9)}`;
       const gradient = config.gradient;
       
       if (gradient.type === 'linear') {
@@ -387,7 +390,7 @@ export class ShapeNode extends LitElement {
     
     // Set shape dimensions
     const shapeDef = this.getShapeDefinition();
-    const config = this.data?.data;
+    const config = this.data;
     const size = config?.size || shapeDef?.defaultSize || { width: 200, height: 200 };
     this.style.setProperty('--shape-width', `${size.width}px`);
     this.style.setProperty('--shape-height', `${size.height}px`);
@@ -444,7 +447,7 @@ export class ShapeNode extends LitElement {
   }
 
   private renderLabel() {
-    const shapeConfig = this.data?.data;
+    const shapeConfig = this.data;
     if (!shapeConfig) return '';
 
     // Get the label - use provided label or default to shape type
