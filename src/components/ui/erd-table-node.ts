@@ -6,6 +6,7 @@
 import { html, css, CSSResult } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { FlowNode } from '../flow-node';
+import '../node-resizer';
 
 export interface ERDField {
   name: string;
@@ -28,6 +29,8 @@ export class ERDTableNode extends FlowNode {
       :host {
         padding: 0;
         min-width: 200px;
+        display: flex;
+        flex-direction: column;
         background: var(--erd-table-bg, white);
       }
 
@@ -48,6 +51,7 @@ export class ERDTableNode extends FlowNode {
 
       .table-body {
         padding: 0;
+        overflow: auto;
       }
 
       .field-row {
@@ -99,8 +103,7 @@ export class ERDTableNode extends FlowNode {
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: var(--flow-handle-bg, #fff);
-        border: 2px solid var(--flow-handle-border, #2563eb);
+        background: var(--flow-handle-bg, #f1f1f1);
         cursor: crosshair;
         pointer-events: auto;
         z-index: 10;
@@ -108,13 +111,13 @@ export class ERDTableNode extends FlowNode {
       }
 
       .field-handle.left {
-        left: -5px;
+        left: 3px;
         top: 50%;
         transform: translateY(-50%);
       }
 
       .field-handle.right {
-        right: -5px;
+        right: 3px;
         top: 50%;
         transform: translateY(-50%);
       }
@@ -191,6 +194,15 @@ export class ERDTableNode extends FlowNode {
           </div>
         `)}
       </div>
+      ${this.resizable ? html`
+        <node-resizer
+          .visible=${this.selected}
+          min-width="150"
+          min-height="80"
+          max-width="500"
+          max-height="400"
+        ></node-resizer>
+      ` : ''}
     `;
   }
 }

@@ -7,6 +7,7 @@ import { LitElement, html, css, CSSResult } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { XYPosition } from '../core/types';
 import type { FlowInstance } from '../core/flow-instance';
+import './node-resizer';
 
 @customElement('flow-node')
 export class FlowNode extends LitElement {
@@ -78,6 +79,7 @@ export class FlowNode extends LitElement {
   @property({ type: Boolean, reflect: true }) dragging = false;
   @property({ type: Boolean }) draggable = true;
   @property({ type: Object }) instance?: FlowInstance;
+  @property({ type: Boolean }) resizable = false;
 
   private isDragging = false;
   private dragStart: XYPosition = { x: 0, y: 0 };
@@ -89,6 +91,10 @@ export class FlowNode extends LitElement {
       this.addEventListener('mousedown', this.handleMouseDown);
     }
     this.addEventListener('click', this.handleClick);
+    if (this.resizable) {
+      this.addEventListener('resize', this.handleResize as EventListener);
+      this.addEventListener('resize-end', this.handleResizeEnd as EventListener);
+    }
     this.updateMeasuredSize();
   }
 
@@ -96,6 +102,10 @@ export class FlowNode extends LitElement {
     super.disconnectedCallback();
     this.removeEventListener('mousedown', this.handleMouseDown);
     this.removeEventListener('click', this.handleClick);
+    if (this.resizable) {
+      this.removeEventListener('resize', this.handleResize as EventListener);
+      this.removeEventListener('resize-end', this.handleResizeEnd as EventListener);
+    }
     this.cleanup();
   }
 
@@ -124,8 +134,57 @@ export class FlowNode extends LitElement {
     }
   };
 
+  private handleResize = (e: Event) => {
+    const { width, height } = (e as CustomEvent).detail;
+    
+    // Update node dimensions in the instance
+    if (this.instance) {
+      this.instance.updateNode(this.id, { 
+        width: width,
+        height: height,
+        measured: { width, height }
+      });
+    }
+  };
+
+  private handleResizeEnd = (e: Event) => {
+    const { width, height } = (e as CustomEvent).detail;
+    
+    // Final update with new dimensions
+    if (this.instance) {
+      this.instance.updateNode(this.id, { 
+        width: width,
+        height: height,
+        measured: { width, height }
+      });
+    }
+
+    // Dispatch resize end event
+    this.dispatchEvent(new CustomEvent('node-resize-end', {
+      detail: {
+        nodeId: this.id,
+        width: width,
+        height: height
+      },
+      bubbles: true,
+      composed: true
+    }));
+  };
+
   private handleMouseDown = (e: MouseEvent) => {
     if (!this.draggable || e.button !== 0) return;
+    
+    // Check if the event is coming from a resize handle or node-resizer
+    const target = e.target as HTMLElement;
+    
+    // Check if the event originated from a resize handle or node-resizer
+    const isFromResizeHandle = target.classList.contains('resize-handle') || 
+                              target.tagName === 'NODE-RESIZER' ||
+                              target.closest('node-resizer') !== null;
+    
+    if (isFromResizeHandle) {
+      return; // Don't start dragging if clicking on resize handle
+    }
     
     e.preventDefault();
     e.stopPropagation();
@@ -183,27 +242,43 @@ export class FlowNode extends LitElement {
 
   render() {
     return html`
-      <div class="node-content">
-        ${this.data?.label || 'Node'}
+      <div class="node-container">
+        <div class="node-content">
+          ${this.data?.label || 'Node'}
+        </div>
+        <div 
+          class="handle target" 
+          data-handle="target" 
+          data-node-id=${this.id}
+          @mousedown=${this.onHandleMouseDown('target')}
+        ></div>
+        <div 
+          class="handle source" 
+          data-handle="source" 
+          data-node-id=${this.id}
+          @mousedown=${this.onHandleMouseDown('source')}
+        ></div>
       </div>
-      <div 
-        class="handle target" 
-        data-handle="target" 
-        data-node-id=${this.id}
-        @mousedown=${this.onHandleMouseDown('target')}
-      ></div>
-      <div 
-        class="handle source" 
-        data-handle="source" 
-        data-node-id=${this.id}
-        @mousedown=${this.onHandleMouseDown('source')}
-      ></div>
+      ${this.resizable ? html`
+        <node-resizer
+          .visible=${this.selected}
+          min-width="50"
+          min-height="30"
+          max-width="500"
+          max-height="300"
+        ></node-resizer>
+      ` : ''}
     `;
   }
 
-  updated() {
+  updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties);
     this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
     this.updateMeasuredSize();
+    
+    if (changedProperties.has('resizable')) {
+      console.log('FlowNode resizable changed:', this.resizable);
+    }
   }
 
   private updateMeasuredSize() {

@@ -21,6 +21,7 @@ export type Node<
   NodeType extends string | undefined = string | undefined
 > = NodeBase<NodeData, NodeType> & {
   type?: string; // 'default', 'shape', 'erd-table', 'custom', etc.
+  resizable?: boolean; // Enable resize functionality
 };
 
 // Lit-specific edge type (extends system EdgeBase)

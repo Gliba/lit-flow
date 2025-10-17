@@ -7,6 +7,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { ShapeNodeData, ShapeNodeDataDirect } from './types';
 import { ShapeRegistry } from './shape-registry';
+import '../node-resizer';
 
 @customElement('shape-node')
 export class ShapeNode extends LitElement {
@@ -173,6 +174,7 @@ export class ShapeNode extends LitElement {
   @property({ type: Boolean }) draggable = true;
   @property({ type: Boolean }) connectable = true;
   @property({ type: Object }) instance: any = null;
+  @property({ type: Boolean }) resizable = false;
 
   private isDragging = false;
   private dragStart = { x: 0, y: 0 };
@@ -185,6 +187,10 @@ export class ShapeNode extends LitElement {
     if (changedProperties.has('position') && !this.isDragging) {
       // Position updated from outside (not during dragging)
       // This can be used for future features like animation
+    }
+    
+    if (changedProperties.has('resizable')) {
+      console.log('ShapeNode resizable changed:', this.resizable);
     }
   }
 
@@ -274,12 +280,20 @@ export class ShapeNode extends LitElement {
     super.connectedCallback();
     this.addEventListener('click', this.handleClick);
     this.addEventListener('mousedown', this.handleMouseDown);
+    if (this.resizable) {
+      this.addEventListener('resize', this.handleResize as EventListener);
+      this.addEventListener('resize-end', this.handleResizeEnd as EventListener);
+    }
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeEventListener('click', this.handleClick);
     this.removeEventListener('mousedown', this.handleMouseDown);
+    if (this.resizable) {
+      this.removeEventListener('resize', this.handleResize as EventListener);
+      this.removeEventListener('resize-end', this.handleResizeEnd as EventListener);
+    }
     this.cleanup();
   }
 
@@ -316,8 +330,69 @@ export class ShapeNode extends LitElement {
     }
   };
 
+  private handleResize = (e: Event) => {
+    const { width, height } = (e as CustomEvent).detail;
+    
+    // Update the shape data with new size
+    if (this.data && this.instance) {
+      const updatedData = {
+        ...this.data,
+        size: { width, height }
+      };
+      
+      this.instance.updateNode(this.id, { 
+        data: updatedData,
+        width: width,
+        height: height,
+        measured: { width, height }
+      });
+    }
+  };
+
+  private handleResizeEnd = (e: Event) => {
+    const { width, height } = (e as CustomEvent).detail;
+    
+    // Final update with new dimensions
+    if (this.data && this.instance) {
+      const updatedData = {
+        ...this.data,
+        size: { width, height }
+      };
+      
+      this.instance.updateNode(this.id, { 
+        data: updatedData,
+        width: width,
+        height: height,
+        measured: { width, height }
+      });
+    }
+
+    // Dispatch resize end event
+    this.dispatchEvent(new CustomEvent('node-resize-end', {
+      detail: {
+        nodeId: this.id,
+        width: width,
+        height: height
+      },
+      bubbles: true,
+      composed: true
+    }));
+  };
+
   private handleMouseDown = (e: MouseEvent) => {
     if (!this.draggable || e.button !== 0) return;
+    
+    // Check if the event is coming from a resize handle or node-resizer
+    const target = e.target as HTMLElement;
+    
+    // Check if the event originated from a resize handle or node-resizer
+    const isFromResizeHandle = target.classList.contains('resize-handle') || 
+                              target.tagName === 'NODE-RESIZER' ||
+                              target.closest('node-resizer') !== null;
+    
+    if (isFromResizeHandle) {
+      return; // Don't start dragging if clicking on resize handle
+    }
     
     e.preventDefault();
     e.stopPropagation();
@@ -354,6 +429,7 @@ export class ShapeNode extends LitElement {
   };
 
   private handleMouseUp = () => {
+    console.log('handleMouseUp');
     if (this.isDragging && this.instance) {
       this.instance.updateNode(this.id, { dragging: false });
     }
@@ -363,7 +439,9 @@ export class ShapeNode extends LitElement {
   };
 
   private handleHandleStart = (e: MouseEvent) => {
+    console.log('handleHandleStart', e);
     e.stopPropagation();
+    this.isDragging = false;
     
     const handle = e.target as HTMLElement;
     const handleId = handle.dataset.handleId;
@@ -405,6 +483,15 @@ export class ShapeNode extends LitElement {
         ${this.connectable ? this.renderHandles() : ''}
         ${this.renderLabel()}
       </div>
+      ${this.resizable ? html`
+        <node-resizer
+          .visible=${this.selected}
+          min-width="50"
+          min-height="50"
+          max-width="500"
+          max-height="500"
+        ></node-resizer>
+      ` : ''}
     `;
   }
 

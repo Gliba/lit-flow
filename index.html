@@ -67,7 +67,11 @@
       <h1>🌊 lit-flow</h1>
       <div class="controls">
         <button id="add-node">Add Node</button>
+        <button id="add-resizable-node">Add Resizable Node</button>
         <button id="add-shape">Add Shape</button>
+        <button id="add-resizable-shape">Add Resizable Shape</button>
+        <button id="add-erd-table">Add ERD Table</button>
+        <button id="add-resizable-erd-table">Add Resizable ERD Table</button>
         <button id="fit-view">Fit View</button>
         <button id="toggle-theme">Toggle Theme</button>
         <div id="selection-info" style="margin-left: 1rem; font-size: 0.875rem; color: #666;">No selection</div>
@@ -106,30 +110,80 @@
         // Set nodes first - they will be registered as pending
         flowCanvas.setNodes([
           {
+            id: 'node-1',
+            type: 'default',
+            position: { x: 50, y: 50 },
+            data: { label: 'Regular Node' },
+            width: 150,
+            height: 50
+          },
+          {
+            id: 'resizable-node-1',
+            type: 'default',
+            position: { x: 250, y: 50 },
+            data: { label: 'Resizable Node' },
+            width: 150,
+            height: 50,
+            resizable: true
+          },
+          {
+            id: 'erd-table-1',
+            type: 'erd-table',
+            position: { x: 50, y: 350 },
+            data: { 
+              tableName: 'Users',
+              fields: [
+                { name: 'id', type: 'INT', key: 'PK' },
+                { name: 'name', type: 'VARCHAR(255)', nullable: false },
+                { name: 'email', type: 'VARCHAR(255)', nullable: false }
+              ]
+            },
+            width: 200,
+            height: 120
+          },
+          {
+            id: 'resizable-erd-table-1',
+            type: 'erd-table',
+            position: { x: 300, y: 350 },
+            data: { 
+              tableName: 'Products',
+              fields: [
+                { name: 'id', type: 'INT', key: 'PK' },
+                { name: 'title', type: 'VARCHAR(255)', nullable: false },
+                { name: 'price', type: 'DECIMAL(10,2)', nullable: false },
+                { name: 'description', type: 'TEXT', nullable: true }
+              ]
+            },
+            width: 200,
+            height: 120,
+            resizable: true
+          },
+          {
             id: 'shape-1',
             type: 'shape',
-            position: { x: 100, y: 100 },
+            position: { x: 100, y: 200 },
             data: {
               type: 'rectangle',
               color: 'blue',
               size: { width: 200, height: 200 },
               strokeColor: '#000000',
               strokeWidth: 2,
-              label: 'Start Node'
+              label: 'Regular Shape'
             }
           },
           {
-            id: 'shape-2',
+            id: 'resizable-shape-1',
             type: 'shape',
-            position: { x: 400, y: 100 },
+            position: { x: 400, y: 200 },
             data: {
               type: 'diamond',
               color: 'red',
               size: { width: 220, height: 220 },
               strokeColor: '#000000',
               strokeWidth: 2,
-              label: 'End Node'
-            }
+              label: 'Resizable Shape'
+            },
+            resizable: true
           }
         ]);
 
@@ -137,10 +191,22 @@
         flowCanvas.setEdges([
           {
             id: 'edge-1',
+            source: 'node-1',
+            target: 'resizable-node-1',
+            animated: true
+          },
+          {
+            id: 'edge-2',
             source: 'shape-1',
-            target: 'shape-2',
+            target: 'resizable-shape-1',
             sourceHandle: 'shape-1-source-right',
-            targetHandle: 'shape-2-target-left',
+            targetHandle: 'resizable-shape-1-target-left',
+            animated: true
+          },
+          {
+            id: 'edge-3',
+            source: 'erd-table-1',
+            target: 'resizable-erd-table-1',
             animated: true
           }
         ]);
@@ -157,6 +223,22 @@
             data: { label: `Node ${nodeCount}` },
             width: 150,
             height: 50
+          });
+        });
+
+        // Add resizable node button
+        document.getElementById('add-resizable-node').addEventListener('click', () => {
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `resizable-${nodeCount}`,
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: { label: `Resizable Node ${nodeCount}` },
+            width: 150,
+            height: 50,
+            resizable: true
           });
         });
 
@@ -183,6 +265,88 @@
               strokeWidth: 2
               // No label specified - will default to shape type
             }
+          });
+        });
+
+        // Add resizable shape button
+        document.getElementById('add-resizable-shape').addEventListener('click', () => {
+          const shapes = ['circle', 'rectangle', 'diamond', 'triangle', 'hexagon', 'octagon', 'heart'];
+          const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+          const colors = ['#ff0071', '#1a73e8', '#00ff00', '#ff6600', '#9900ff', '#ff0000', '#00ffff'];
+          const color = colors[Math.floor(Math.random() * colors.length)];
+          
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `resizable-shape-${nodeCount}`,
+            type: 'shape',
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: {
+              type: randomShape,
+              color: color,
+              size: { width: 160, height: 160 },
+              strokeColor: '#000000',
+              strokeWidth: 2,
+              label: `Resizable ${randomShape}`
+            },
+            resizable: true
+          });
+        });
+
+        // Add ERD table button
+        document.getElementById('add-erd-table').addEventListener('click', () => {
+          const tableNames = ['Users', 'Products', 'Orders', 'Categories', 'Comments', 'Reviews', 'Tags'];
+          const randomTable = tableNames[Math.floor(Math.random() * tableNames.length)];
+          
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `erd-table-${nodeCount}`,
+            type: 'erd-table',
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: { 
+              tableName: randomTable,
+              fields: [
+                { name: 'id', type: 'INT', key: 'PK' },
+                { name: 'name', type: 'VARCHAR(255)', nullable: false },
+                { name: 'created_at', type: 'TIMESTAMP', nullable: false }
+              ]
+            },
+            width: 200,
+            height: 120
+          });
+        });
+
+        // Add resizable ERD table button
+        document.getElementById('add-resizable-erd-table').addEventListener('click', () => {
+          const tableNames = ['Users', 'Products', 'Orders', 'Categories', 'Comments', 'Reviews', 'Tags'];
+          const randomTable = tableNames[Math.floor(Math.random() * tableNames.length)];
+          
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `resizable-erd-table-${nodeCount}`,
+            type: 'erd-table',
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: { 
+              tableName: randomTable,
+              fields: [
+                { name: 'id', type: 'INT', key: 'PK' },
+                { name: 'name', type: 'VARCHAR(255)', nullable: false },
+                { name: 'email', type: 'VARCHAR(255)', nullable: false },
+                { name: 'created_at', type: 'TIMESTAMP', nullable: false },
+                { name: 'updated_at', type: 'TIMESTAMP', nullable: true }
+              ]
+            },
+            width: 200,
+            height: 120,
+            resizable: true
           });
         });
 

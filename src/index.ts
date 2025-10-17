@@ -18,6 +18,7 @@ export { FlowControls } from './components/flow-controls';
 export { ERDTableNode } from './components/ui/erd-table-node';
 export { ShapeNode } from './components/shapes/shape-node';
 export { ShapeRegistry } from './components/shapes/shape-registry';
+export { NodeResizer } from './components/node-resizer';
 export {
   BaseNode,
   BaseNodeHeader,
@@ -64,4 +65,7 @@ export {
 
 // Import base styles
 import './styles/base.css';
+
+// Import components to ensure they're registered
+import './components/node-resizer';
 

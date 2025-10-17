@@ -439,6 +439,7 @@ export class FlowCanvas extends LitElement {
         .selected=${node.selected || false}
         .draggable=${node.draggable !== false}
         .connectable=${node.connectable !== false}
+        .resizable=${node.resizable || false}
         .instance=${this.instance}
         @handle-start=${this.onHandleStart}
       ></${tag}>
