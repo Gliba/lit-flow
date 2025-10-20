@@ -137,9 +137,7 @@
                 { name: 'name', type: 'VARCHAR(255)', nullable: false },
                 { name: 'email', type: 'VARCHAR(255)', nullable: false }
               ]
-            },
-            width: 200,
-            height: 120
+            }
           },
           {
             id: 'resizable-erd-table-1',
@@ -147,6 +145,7 @@
             position: { x: 300, y: 350 },
             data: { 
               tableName: 'Products',
+              size: { width: 320, height: 150 },
               fields: [
                 { name: 'id', type: 'INT', key: 'PK' },
                 { name: 'title', type: 'VARCHAR(255)', nullable: false },
@@ -154,8 +153,6 @@
                 { name: 'description', type: 'TEXT', nullable: true }
               ]
             },
-            width: 200,
-            height: 120,
             resizable: true
           },
           {
@@ -184,6 +181,80 @@
               label: 'Resizable Shape'
             },
             resizable: true
+          },
+          {
+            id: 'c2bea15f-4c6a-4856-8bcd-b61d22379693',
+            type: 'shape',
+            position: { x: 189, y: 237 },
+            data: {
+              type: 'rectangle',
+              color: '#1fa2ff',
+              size: { width: 150, height: 80 },
+              strokeColor: '#1d4ed8',
+              strokeWidth: 2,
+              label: 'Prepare for submit',
+              stepData: { x: 54, y: 312 },
+              stepName: 'Prepare for submit',
+              actionSettings: {
+                ui_settings: {
+                  widget__thing_id: 'c0007f5e-ceae-421b-aa21-5a15a8bce54f',
+                  style: { shape: 'rectangle', 'background-color': '#1fa2ff' },
+                  icon: 'vaadin:connect-o'
+                },
+                action_settings: {
+                  has_mappings: true,
+                  supported_workflow_options: [
+                    'log_execution__true',
+                    'log_execution__false'
+                  ]
+                },
+                action_name: 'Call server function',
+                thing_id: '3d9d2679-0d07-4753-9aae-3854116b2504',
+                version_id: '6cb5c15a-64d4-41df-9a7d-a06da18bc830',
+                run_async: false
+              }
+            },
+            connectable: true,
+            dragging: false,
+            selected: true,
+            resizable: true
+          },
+          {
+            id: '731408c9-e942-4218-b517-9a75fcd19b13',
+            type: 'shape',
+            position: { x: 365, y: 215 },
+            data: {
+              type: 'rectangle',
+              color: '#1fa2ff',
+              size: { width: 150, height: 80 },
+              strokeColor: '#1d4ed8',
+              strokeWidth: 2,
+              label: 'Set submitted status',
+              stepData: { x: 310, y: 218 },
+              stepName: 'Set submitted status',
+              actionSettings: {
+                ui_settings: {
+                  widget__thing_id: 'c0007f5e-ceae-421b-aa21-5a15a8bce54f',
+                  style: { shape: 'rectangle', 'background-color': '#1fa2ff' },
+                  icon: 'vaadin:connect-o'
+                },
+                action_settings: {
+                  has_mappings: true,
+                  supported_workflow_options: [
+                    'log_execution__true',
+                    'log_execution__false'
+                  ]
+                },
+                action_name: 'Call server function',
+                thing_id: '3d9d2679-0d07-4753-9aae-3854116b2504',
+                version_id: '6cb5c15a-64d4-41df-9a7d-a06da18bc830',
+                run_async: false
+              }
+            },
+            connectable: true,
+            selected: true,
+            dragging: false,
+            resizable: true
           }
         ]);
 
@@ -208,6 +279,14 @@
             source: 'erd-table-1',
             target: 'resizable-erd-table-1',
             animated: true
+          },
+          {
+            id: 'edge-c2bea15f-4c6a-4856-8bcd-b61d22379693-731408c9-e942-4218-b517-9a75fcd19b13',
+            source: 'c2bea15f-4c6a-4856-8bcd-b61d22379693',
+            target: '731408c9-e942-4218-b517-9a75fcd19b13',
+            sourceHandle: 'c2bea15f-4c6a-4856-8bcd-b61d22379693-source-right',
+            targetHandle: '731408c9-e942-4218-b517-9a75fcd19b13-target-left',
+            data: { label: '', color: '' }
           }
         ]);
 
