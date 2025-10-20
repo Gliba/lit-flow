@@ -19,6 +19,7 @@ export interface ERDTableData {
   tableName: string;
   fields: ERDField[];
   color?: string;
+  size?: { width?: number; height?: number };
 }
 
 @customElement('erd-table-node')
@@ -128,6 +129,29 @@ export class ERDTableNode extends FlowNode {
       }
     `
   ];
+
+  // Apply initial size from data.size exactly once
+  private appliedInitialSize = false;
+
+  updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties as any);
+    if (!this.appliedInitialSize) {
+      const data = this.data as ERDTableData | undefined;
+      const w = data?.size?.width;
+      const h = data?.size?.height;
+      if ((typeof w === 'number' && w > 0) || (typeof h === 'number' && h > 0)) {
+        if (typeof w === 'number' && w > 0) this.style.width = `${w}px`;
+        if (typeof h === 'number' && h > 0) this.style.height = `${h}px`;
+        if (this.instance) {
+          this.instance.updateNode(this.id, {
+            width: typeof w === 'number' && w > 0 ? w : (this as any).width,
+            height: typeof h === 'number' && h > 0 ? h : (this as any).height,
+          });
+        }
+        this.appliedInitialSize = true;
+      }
+    }
+  }
 
   private onFieldHandleMouseDown(fieldName: string, side: 'left' | 'right') {
     return (e: MouseEvent) => {
