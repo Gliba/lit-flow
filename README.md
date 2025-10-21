@@ -446,6 +446,302 @@ export class BaseDemoNode extends BaseNode {
 }
 ```
 
+## 🧩 NodeMixin - Advanced Custom Node Development
+
+For more advanced custom node development, lit-flow provides the `NodeMixin` - a powerful mixin that adds core node functionality to any LitElement without requiring inheritance from a base class.
+
+### Why Use NodeMixin?
+
+- **Flexible Architecture** - Apply node behavior to any existing component
+- **No Inheritance Required** - Works with any LitElement-based component
+- **Comprehensive Features** - Dragging, selection, resizing, and event handling
+- **Reusable** - Mix and match with other mixins and components
+- **TypeScript Support** - Full type safety and IntelliSense
+
+### Basic Usage
+
+```typescript
+import { LitElement, html, css } from 'lit';
+import { customElement } from 'lit/decorators.js';
+import { NodeMixin } from 'lit-flow';
+
+@customElement('my-custom-node')
+export class MyCustomNode extends NodeMixin(LitElement) {
+  constructor() {
+    super();
+    // Configure node behavior
+    this.resizable = true;
+    this.draggable = true;
+    this.connectable = true;
+    
+    // Set resize constraints
+    this.minWidth = 100;
+    this.minHeight = 50;
+    this.maxWidth = 400;
+    this.maxHeight = 300;
+    this.keepAspectRatio = false;
+  }
+
+  static styles = [
+    ...(super.styles || []),
+    css`
+      :host {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 16px;
+        color: white;
+        min-width: 120px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      
+      :host([selected]) {
+        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.3);
+      }
+    `
+  ];
+
+  render() {
+    return html`
+      <div class="node-content">
+        <h3>${this.data?.title || 'Custom Node'}</h3>
+        <p>${this.data?.description || 'Node description'}</p>
+        <div class="node-actions">
+          <button>Action 1</button>
+          <button>Action 2</button>
+        </div>
+      </div>
+      
+      <!-- Render resize handles (automatically shown when selected) -->
+      ${this.renderResizer()}
+    `;
+  }
+}
+```
+
+### NodeMixin Features
+
+#### Core Properties
+
+```typescript
+interface NodeMixinInterface {
+  // Node identification
+  id: string;
+  position: { x: number; y: number };
+  data: any;
+  
+  // Behavior flags
+  selected: boolean;
+  dragging: boolean;
+  resizable: boolean;
+  draggable: boolean;
+  connectable: boolean;
+  
+  // Resize constraints
+  minWidth: number;
+  maxWidth: number;
+  minHeight: number;
+  maxHeight: number;
+  keepAspectRatio: boolean;
+  
+  // Flow instance
+  instance: any;
+}
+```
+
+#### Automatic Behaviors
+
+- **Selection Management** - Click to select, click outside to deselect
+- **Drag & Drop** - Smooth dragging with viewport zoom support
+- **Resizing** - 8-point resize handles with constraints
+- **Event Dispatching** - Comprehensive event system for all interactions
+- **Global Deselection** - Automatic deselection when clicking outside
+
+#### Resize Configuration
+
+```typescript
+constructor() {
+  super();
+  
+  // Enable resizing
+  this.resizable = true;
+  
+  // Set size constraints
+  this.minWidth = 80;
+  this.minHeight = 60;
+  this.maxWidth = 500;
+  this.maxHeight = 400;
+  
+  // Keep aspect ratio during resize
+  this.keepAspectRatio = true;
+}
+```
+
+### Event System
+
+The NodeMixin dispatches comprehensive events for all interactions:
+
+```typescript
+// Selection events
+this.addEventListener('node-select', (e) => {
+  console.log('Node selected:', e.detail);
+});
+
+this.addEventListener('node-deselect', (e) => {
+  console.log('Node deselected:', e.detail);
+});
+
+// Resize events
+this.addEventListener('resize-start', (e) => {
+  console.log('Resize started:', e.detail);
+});
+
+this.addEventListener('resize', (e) => {
+  console.log('Resizing:', e.detail);
+});
+
+this.addEventListener('resize-end', (e) => {
+  console.log('Resize ended:', e.detail);
+});
+```
+
+### Advanced Example - Database Table Node
+
+```typescript
+@customElement('database-table-node')
+export class DatabaseTableNode extends NodeMixin(LitElement) {
+  constructor() {
+    super();
+    this.resizable = true;
+    this.minWidth = 200;
+    this.minHeight = 100;
+    this.maxWidth = 400;
+    this.maxHeight = 300;
+  }
+
+  static styles = [
+    ...(super.styles || []),
+    css`
+      :host {
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 12px;
+      }
+      
+      .table-header {
+        background: #f3f4f6;
+        padding: 8px 12px;
+        border-bottom: 1px solid #e5e7eb;
+        font-weight: bold;
+      }
+      
+      .field-row {
+        display: flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-bottom: 1px solid #f3f4f6;
+        position: relative;
+      }
+      
+      .field-name {
+        flex: 1;
+        font-weight: 500;
+      }
+      
+      .field-type {
+        color: #6b7280;
+        margin-left: 8px;
+      }
+      
+      .field-key {
+        background: #fbbf24;
+        color: #92400e;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        margin-left: 8px;
+      }
+    `
+  ];
+
+  render() {
+    const fields = this.data?.fields || [];
+    
+    return html`
+      <div class="table-header">
+        ${this.data?.tableName || 'Table'}
+      </div>
+      
+      <div class="table-body">
+        ${fields.map(field => html`
+          <div class="field-row">
+            <div class="field-name">${field.name}</div>
+            <div class="field-type">${field.type}</div>
+            ${field.key ? html`<span class="field-key">${field.key}</span>` : ''}
+          </div>
+        `)}
+      </div>
+      
+      <!-- Resize handles (automatically managed) -->
+      ${this.renderResizer()}
+    `;
+  }
+}
+```
+
+### Integration with Flow Canvas
+
+```javascript
+// Register the custom node type
+const flowCanvas = document.getElementById('flow');
+
+customElements.whenDefined('flow-canvas').then(() => {
+  flowCanvas.instance.setNodes([
+    {
+      id: 'users-table',
+      type: 'database-table',
+      position: { x: 100, y: 100 },
+      data: {
+        tableName: 'Users',
+        fields: [
+          { name: 'id', type: 'INT', key: 'PK' },
+          { name: 'username', type: 'VARCHAR' },
+          { name: 'email', type: 'VARCHAR' },
+          { name: 'created_at', type: 'TIMESTAMP' }
+        ]
+      }
+    }
+  ]);
+});
+```
+
+### Mixin Composition
+
+The NodeMixin can be combined with other mixins for even more functionality:
+
+```typescript
+import { NodeMixin } from 'lit-flow';
+import { SomeOtherMixin } from './other-mixin';
+
+@customElement('advanced-node')
+export class AdvancedNode extends NodeMixin(SomeOtherMixin(LitElement)) {
+  // Combines node functionality with other behaviors
+}
+```
+
+### Best Practices
+
+1. **Always call `super()` in constructor** to initialize mixin properties
+2. **Include `renderResizer()` in your render method** for resize functionality
+3. **Use CSS custom properties** for consistent theming
+4. **Handle events properly** by listening to the dispatched events
+5. **Set appropriate constraints** for resize behavior
+6. **Test with different data structures** to ensure robustness
+
+The NodeMixin provides a powerful, flexible foundation for building sophisticated custom nodes while maintaining clean, reusable code architecture.
+
 ## 🎨 Shape Nodes
 
 lit-flow includes a powerful shape node system that allows you to create nodes with various geometric shapes using SVG rendering. Shape nodes are perfect for creating visual diagrams, flowcharts, and process maps.

@@ -72,6 +72,7 @@
         <button id="add-resizable-shape">Add Resizable Shape</button>
         <button id="add-erd-table">Add ERD Table</button>
         <button id="add-resizable-erd-table">Add Resizable ERD Table</button>
+        <button id="add-mixin-test">Add Mixin Test Node</button>
         <button id="fit-view">Fit View</button>
         <button id="toggle-theme">Toggle Theme</button>
         <div id="selection-info" style="margin-left: 1rem; font-size: 0.875rem; color: #666;">No selection</div>
@@ -89,6 +90,7 @@
     <script type="module">
       // import './dist/lit-flow.js';
       import './src/index.ts';
+      import './examples/mixin-test-node.ts';
 
       const flowCanvas = document.getElementById('flow');
       const flowControls = document.getElementById('controls');
@@ -99,7 +101,8 @@
         'default': 'flow-node',
         'erd-table': 'erd-table-node',
         'base-demo': 'base-demo-node',
-        'shape': 'shape-node'
+        'shape': 'shape-node',
+        'mixin-test': 'mixin-test-node'
       };
 
       // Wait for components to be ready
@@ -424,6 +427,43 @@
               ]
             },
             width: 200,
+            height: 120,
+            resizable: true
+          });
+        });
+
+        // Add mixin test node button
+        document.getElementById('add-mixin-test').addEventListener('click', () => {
+          const titles = ['Mixin Node', 'Custom Component', 'Test Node', 'Composition Example'];
+          const descriptions = [
+            'This node uses NodeMixin for functionality',
+            'Demonstrates composition over inheritance',
+            'Built with mixin pattern',
+            'No FlowNode inheritance required'
+          ];
+          const colors = ['#1fa2ff', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+          const icons = ['🔧', '⚡', '🎯', '🚀', '💡'];
+          
+          const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+          const randomDescription = descriptions[Math.floor(Math.random() * descriptions.length)];
+          const randomColor = colors[Math.floor(Math.random() * colors.length)];
+          const randomIcon = icons[Math.floor(Math.random() * icons.length)];
+          
+          nodeCount++;
+          flowCanvas.instance.addNode({
+            id: `mixin-test-${nodeCount}`,
+            type: 'mixin-test',
+            position: { 
+              x: Math.random() * 400 + 100, 
+              y: Math.random() * 300 + 100 
+            },
+            data: { 
+              title: randomTitle,
+              description: randomDescription,
+              color: randomColor,
+              icon: randomIcon
+            },
+            width: 180,
             height: 120,
             resizable: true
           });
