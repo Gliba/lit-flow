@@ -52,7 +52,8 @@ export interface NodeMixinInterface {
 
 export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
   class NodeMixinClass extends superClass {
-    static styles = [css`
+    static get styles() {
+      return [css`
       :host {
         position: absolute;
         cursor: var(--node-cursor, grab);
@@ -172,7 +173,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         transform: translateY(-50%);
         cursor: e-resize;
       }
-    `];
+      `];
+    }
 
     @property({ type: String, reflect: true }) id = '';
     @property({ type: Object }) position = { x: 0, y: 0 };
