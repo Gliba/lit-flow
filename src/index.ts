@@ -52,6 +52,9 @@ export type {
 export type { BackgroundVariant } from './components/flow-background';
 export type { ERDField, ERDTableData } from './components/ui/erd-table-node';
 
+// Mixin exports
+export { NodeMixin, type NodeMixinInterface } from './mixins/node-mixin';
+
 // Utility exports
 export {
   getDistance,
