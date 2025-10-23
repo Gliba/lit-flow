@@ -10,8 +10,15 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       name: 'LitFlow',
-      fileName: (format) => format === 'es' ? 'lit-flow.js' : 'lit-flow.umd.cjs',
-      formats: ['es', 'umd'],
+      fileName: (format) => {
+        switch (format) {
+          case 'es': return 'lit-flow.js';
+          case 'cjs': return 'lit-flow.cjs';
+          case 'umd': return 'lit-flow.umd.cjs';
+          default: return 'lit-flow.js';
+        }
+      },
+      formats: ['es', 'cjs', 'umd'],
     },
     rollupOptions: {
       external: [],

@@ -1,6 +1,5 @@
 node_modules
 _docs
-dist
 *.tgz
 
 .env

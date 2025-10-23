@@ -3,15 +3,16 @@
   "version": "0.4.10",
   "description": "Flow diagram library for Lit built on @xyflow/system",
   "type": "module",
-  "main": "./dist/lit-flow.umd.cjs",
+  "main": "./dist/lit-flow.cjs",
   "module": "./dist/lit-flow.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/lit-flow.js",
-      "require": "./dist/lit-flow.umd.cjs"
+      "require": "./dist/lit-flow.cjs"
     },
+    "./umd": "./dist/lit-flow.umd.cjs",
     "./dist/style.css": "./dist/style.css"
   },
   "files": [
