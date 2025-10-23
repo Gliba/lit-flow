@@ -17,20 +17,7 @@ interface MixinTestData {
 
 export class MixinTestNode extends NodeMixin(LitElement) {
   // Type assertion to access mixin properties
-  declare id: string;
-  declare position: { x: number; y: number };
-  declare data: any;
-  declare selected: boolean;
-  declare dragging: boolean;
-  declare instance: any;
-  declare resizable: boolean;
-  declare draggable: boolean;
-  declare connectable: boolean;
-  declare minWidth: number;
-  declare maxWidth: number;
-  declare minHeight: number;
-  declare maxHeight: number;
-  declare keepAspectRatio: boolean;
+
   
   constructor() {
     super();
@@ -43,146 +30,147 @@ export class MixinTestNode extends NodeMixin(LitElement) {
     this.keepAspectRatio = false;
     
   }
-  static styles = [
-    ...(super.styles ? (Array.isArray(super.styles) ? super.styles : [super.styles]) : []),
-    css`
-      :host {
-        border: 2px solid var(--node-color, #1fa2ff);
-        border-radius: 12px;
-        background: white;
-        padding: 16px;
-        min-width: 150px;
-        min-height: 100px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      }
+  static get styles() {
+    return [
+      super.styles,
+      css`
+        :host {
+          /* Override mixin variables for custom styling */
+          --node-border: 2px solid var(--node-color, #1fa2ff);
+          --node-border-radius: 12px;
+          --node-background: white;
+          --node-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          --node-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          --node-dragging-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+          --node-selected-border: #1a73e8;
+          --node-selected-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
+          
+          /* Additional custom styles */
+          padding: 16px;
+          min-width: 150px;
+          min-height: 100px;
+        }
 
-      :host(:hover) {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      }
+        .node-content {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          height: 100%;
+        }
 
-      :host([selected]) {
-        border-color: #1a73e8;
-        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
-      }
+        .node-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
 
-      .node-content {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        height: 100%;
-      }
+        .node-icon {
+          font-size: 18px;
+          color: var(--node-color, #1fa2ff);
+        }
 
-      .node-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
+        .node-title {
+          font-weight: 600;
+          color: #1f2937;
+          font-size: 14px;
+        }
 
-      .node-icon {
-        font-size: 18px;
-        color: var(--node-color, #1fa2ff);
-      }
+        .node-description {
+          font-size: 12px;
+          color: #6b7280;
+          line-height: 1.4;
+        }
 
-      .node-title {
-        font-weight: 600;
-        color: #1f2937;
-        font-size: 14px;
-      }
+        .node-footer {
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
 
-      .node-description {
-        font-size: 12px;
-        color: #6b7280;
-        line-height: 1.4;
-      }
+        .node-badge {
+          background: var(--node-color, #1fa2ff);
+          color: white;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: 500;
+        }
 
-      .node-footer {
-        margin-top: auto;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
+        .node-actions {
+          display: flex;
+          gap: 4px;
+        }
 
-      .node-badge {
-        background: var(--node-color, #1fa2ff);
-        color: white;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 500;
-      }
+        .action-btn {
+          background: #f3f4f6;
+          border: none;
+          border-radius: 4px;
+          padding: 4px 8px;
+          font-size: 10px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
 
-      .node-actions {
-        display: flex;
-        gap: 4px;
-      }
+        .action-btn:hover {
+          background: #e5e7eb;
+        }
 
-      .action-btn {
-        background: #f3f4f6;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 10px;
-        cursor: pointer;
-        transition: background 0.2s;
-      }
+        /* Connection handles */
+        .handle {
+          position: absolute;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: white;
+          border: 2px solid var(--node-color, #1fa2ff);
+          cursor: crosshair;
+          opacity: 0;
+          transition: opacity 0.2s;
+          z-index: 10;
+        }
 
-      .action-btn:hover {
-        background: #e5e7eb;
-      }
+        .handle.left {
+          left: -5px;
+          top: 50%;
+          transform: translateY(-50%);
+        }
 
-      /* Handles */
-      .handle {
-        position: absolute;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: white;
-        border: 2px solid var(--node-color, #1fa2ff);
-        cursor: crosshair;
-        opacity: 0;
-        transition: opacity 0.2s;
-        z-index: 10;
-      }
+        .handle.right {
+          right: -5px;
+          top: 50%;
+          transform: translateY(-50%);
+        }
 
-      .handle.left {
-        left: -5px;
-        top: 50%;
-        transform: translateY(-50%);
-      }
+        .handle.top {
+          top: -5px;
+          left: 50%;
+          transform: translateX(-50%);
+        }
 
-      .handle.right {
-        right: -5px;
-        top: 50%;
-        transform: translateY(-50%);
-      }
+        .handle.bottom {
+          bottom: -5px;
+          left: 50%;
+          transform: translateX(-50%);
+        }
 
-      .handle.top {
-        top: -5px;
-        left: 50%;
-        transform: translateX(-50%);
-      }
+        :host(:hover) .handle {
+          opacity: 1;
+        }
 
-      .handle.bottom {
-        bottom: -5px;
-        left: 50%;
-        transform: translateX(-50%);
-      }
+        .handle:hover {
+          transform: translateY(-50%) scale(1.2);
+          border-color: #1a73e8;
+        }
 
-      :host(:hover) .handle {
-        opacity: 1;
-      }
-
-      .handle:hover {
-        transform: translateY(-50%) scale(1.2);
-        border-color: #1a73e8;
-      }
-
-      .handle.top:hover,
-      .handle.bottom:hover {
-        transform: translateX(-50%) scale(1.2);
-      }
-    `
-  ];
+        .handle.top:hover,
+        .handle.bottom:hover {
+          transform: translateX(-50%) scale(1.2);
+        }
+      `
+    ];
+  }
+  
 
   render() {
     const data = this.data as MixinTestData;

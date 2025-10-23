@@ -52,6 +52,128 @@ export interface NodeMixinInterface {
 
 export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
   class NodeMixinClass extends superClass {
+    static styles = [css`
+      :host {
+        position: absolute;
+        cursor: var(--node-cursor, grab);
+        user-select: none;
+        transform-origin: 0 0;
+        will-change: transform;
+        pointer-events: auto;
+        border: var(--node-border, 1px solid #ddd);
+        border-radius: var(--node-border-radius, 8px);
+        background: var(--node-background, white);
+        box-shadow: var(--node-shadow, 0 1px 3px rgba(0, 0, 0, 0.1));
+        transition: var(--node-transition, box-shadow 0.2s);
+      }
+
+      :host(:hover) {
+        box-shadow: var(--node-hover-shadow, 0 4px 6px rgba(0, 0, 0, 0.15));
+      }
+
+      :host([dragging]) {
+        cursor: var(--node-dragging-cursor, grabbing);
+        box-shadow: var(--node-dragging-shadow, 0 8px 16px rgba(0, 0, 0, 0.25));
+      }
+
+      :host([selected]) {
+        border-color: var(--node-selected-border, #1a73e8);
+        box-shadow: var(--node-selected-shadow, 0 0 0 2px rgba(26, 115, 232, 0.3));
+      }
+
+      /* Resizer styles - matching existing components */
+      .resize-border {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: var(--resize-border-style, 1px dashed var(--node-selected-border, #1a73e8));
+        border-radius: var(--node-border-radius, 8px);
+        opacity: var(--resize-border-opacity, 0);
+        pointer-events: none;
+        transition: var(--resize-transition, opacity 0.2s ease);
+      }
+
+      :host([selected]) .resize-border {
+        opacity: var(--resize-border-opacity-selected, 1);
+      }
+
+      .resize-handle {
+        position: absolute;
+        background: var(--resize-handle-background, var(--node-selected-border, #1a73e8));
+        border: var(--resize-handle-border, 2px solid #fff);
+        border-radius: var(--resize-handle-border-radius, 2px);
+        width: var(--resize-handle-size, 12px);
+        height: var(--resize-handle-size, 12px);
+        opacity: var(--resize-handle-opacity, 0);
+        transition: var(--resize-transition, opacity 0.2s ease);
+        pointer-events: auto;
+        box-shadow: var(--resize-handle-shadow, 0 2px 4px rgba(0, 0, 0, 0.2));
+        z-index: 10;
+      }
+
+      .resize-handle:hover {
+        opacity: var(--resize-handle-opacity-hover, 1);
+      }
+
+      :host([selected]) .resize-handle {
+        opacity: var(--resize-handle-opacity-selected, 1);
+      }
+
+      .resize-handle.nw {
+        top: var(--resize-handle-offset, -8px);
+        left: var(--resize-handle-offset, -8px);
+        cursor: nw-resize;
+      }
+
+      .resize-handle.ne {
+        top: var(--resize-handle-offset, -8px);
+        right: var(--resize-handle-offset, -8px);
+        cursor: ne-resize;
+      }
+
+      .resize-handle.sw {
+        bottom: var(--resize-handle-offset, -8px);
+        left: var(--resize-handle-offset, -8px);
+        cursor: sw-resize;
+      }
+
+      .resize-handle.se {
+        bottom: var(--resize-handle-offset, -8px);
+        right: var(--resize-handle-offset, -8px);
+        cursor: se-resize;
+      }
+
+      .resize-handle.n {
+        top: var(--resize-handle-offset, -8px);
+        left: 50%;
+        transform: translateX(-50%);
+        cursor: n-resize;
+      }
+
+      .resize-handle.s {
+        bottom: var(--resize-handle-offset, -8px);
+        left: 50%;
+        transform: translateX(-50%);
+        cursor: s-resize;
+      }
+
+      .resize-handle.w {
+        top: 50%;
+        left: var(--resize-handle-offset, -8px);
+        transform: translateY(-50%);
+        cursor: w-resize;
+      }
+
+      .resize-handle.e {
+        top: 50%;
+        right: var(--resize-handle-offset, -8px);
+        transform: translateY(-50%);
+        cursor: e-resize;
+      }
+    `];
+
     @property({ type: String, reflect: true }) id = '';
     @property({ type: Object }) position = { x: 0, y: 0 };
     @property({ type: Object }) data = {};
@@ -98,8 +220,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
 
     updated(changedProperties: Map<string | number | symbol, unknown>) {
       super.updated(changedProperties);
-      this.style.setProperty('--position-x', `${this.position.x}px`);
-      this.style.setProperty('--position-y', `${this.position.y}px`);
+      // Apply transform for positioning
+      this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
     }
 
     private handleClick = (e: MouseEvent) => {
@@ -168,6 +290,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       
       if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
         this.isDragging = true;
+        this.dragging = true;
         if (this.instance) {
           this.instance.updateNode(this.id, { dragging: true });
         }
