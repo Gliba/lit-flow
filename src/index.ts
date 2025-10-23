@@ -69,6 +69,3 @@ export {
 // Import base styles
 import './styles/base.css';
 
-// Import components to ensure they're registered
-import './components/node-resizer';
-

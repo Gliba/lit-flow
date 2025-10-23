@@ -23,5 +23,4 @@ export type { ERDField, ERDTableData } from './components/ui/erd-table-node';
 export { NodeMixin, type NodeMixinInterface } from './mixins/node-mixin';
 export { getDistance, getCenter, getBezierPath, getSmoothStepPath, getStraightPath, isPointInRect, Position, } from './utils/geometry';
 import './styles/base.css';
-import './components/node-resizer';
 //# sourceMappingURL=index.d.ts.map
