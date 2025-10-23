@@ -4,7 +4,8 @@
  */
 
 import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+
+// Import NodeMixin directly from source to avoid loading the entire library
 import { NodeMixin } from '../src/mixins/node-mixin.js';
 
 interface MixinTestData {
@@ -14,8 +15,23 @@ interface MixinTestData {
   icon?: string;
 }
 
-@customElement('mixin-test-node')
 export class MixinTestNode extends NodeMixin(LitElement) {
+  // Type assertion to access mixin properties
+  declare id: string;
+  declare position: { x: number; y: number };
+  declare data: any;
+  declare selected: boolean;
+  declare dragging: boolean;
+  declare instance: any;
+  declare resizable: boolean;
+  declare draggable: boolean;
+  declare connectable: boolean;
+  declare minWidth: number;
+  declare maxWidth: number;
+  declare minHeight: number;
+  declare maxHeight: number;
+  declare keepAspectRatio: boolean;
+  
   constructor() {
     super();
     // Set resizer properties
@@ -176,7 +192,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
     const icon = data?.icon || '🔧';
 
     // Set CSS custom property for color
-    this.style.setProperty('--node-color', color);
+    (this as any).style.setProperty('--node-color', color);
 
     return html`
       <div class="node-content">
@@ -220,7 +236,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
       ` : ''}
 
       <!-- Resizer -->
-      ${this.renderResizer()}
+      ${(this as any).renderResizer()}
     `;
   }
 
@@ -229,7 +245,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
     console.log('Action clicked on mixin node:', this.id);
     
     // Dispatch custom event
-    this.dispatchEvent(new CustomEvent('node-action', {
+    (this as any).dispatchEvent(new CustomEvent('node-action', {
       detail: { 
         nodeId: this.id, 
         action: 'button-click',
@@ -245,7 +261,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
       e.stopPropagation();
       e.preventDefault();
       
-      this.dispatchEvent(new CustomEvent('handle-start', {
+      (this as any).dispatchEvent(new CustomEvent('handle-start', {
         detail: { 
           nodeId: this.id, 
           type: type,
@@ -259,6 +275,9 @@ export class MixinTestNode extends NodeMixin(LitElement) {
   };
 
 }
+
+// Register the custom element
+customElements.define('mixin-test-node', MixinTestNode as any);
 
 declare global {
   interface HTMLElementTagNameMap {

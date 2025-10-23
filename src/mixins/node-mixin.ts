@@ -51,7 +51,7 @@ export interface NodeMixinInterface {
 }
 
 export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
-  class NodeMixinClass extends superClass implements NodeMixinInterface {
+  class NodeMixinClass extends superClass {
     @property({ type: String, reflect: true }) id = '';
     @property({ type: Object }) position = { x: 0, y: 0 };
     @property({ type: Object }) data = {};
@@ -562,7 +562,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     };
   }
 
-  return NodeMixinClass as Constructor<NodeMixinInterface> & T;
+  return NodeMixinClass as any;
 };
 
 type Constructor<T = {}> = new (...args: any[]) => T;
