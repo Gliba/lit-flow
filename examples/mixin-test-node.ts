@@ -172,7 +172,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
   }
   
 
-  render() {
+  protected renderComponent() {
     const data = this.data as MixinTestData;
     const title = data?.title || 'Mixin Node';
     const description = data?.description || 'This node uses NodeMixin for functionality';
@@ -222,9 +222,6 @@ export class MixinTestNode extends NodeMixin(LitElement) {
           @mousedown=${this.handleHandleStart('target', 'bottom')}
         ></div>
       ` : ''}
-
-      <!-- Resizer -->
-      ${(this as any).renderResizer()}
     `;
   }
 
