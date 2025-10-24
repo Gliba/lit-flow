@@ -3463,10 +3463,6 @@
         document.removeEventListener("click", this.handleGlobalClick);
         this.cleanup();
       }
-      updated(changedProperties) {
-        super.updated(changedProperties);
-        this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
-      }
       cleanup() {
         document.removeEventListener("mousemove", this.handleMouseMove);
         document.removeEventListener("mouseup", this.handleMouseUp);
@@ -3492,26 +3488,52 @@
       `;
       }
       /**
-       * Override the render method to automatically include the resizer
-       * Components using this mixin should call super.render() in their render method
-       * and the resizer will be automatically appended
+       * Helper method to get just the resizer HTML
+       * Use this in components that override render() method
        */
-      render() {
-        const componentRender = this.renderComponent();
-        if (Array.isArray(componentRender)) {
-          return [...componentRender, this.renderResizer()];
-        }
-        return lit.html`
-        ${componentRender}
-        ${this.renderResizer()}
-      `;
+      getResizer() {
+        return this.renderResizer();
       }
       /**
-       * Override this method in components to provide their content
-       * The mixin will automatically append the resizer
+       * Automatically append resizer to DOM after rendering
+       * This works even when components override render() method
        */
-      renderComponent() {
-        return lit.html``;
+      firstUpdated() {
+        this.appendResizerToDOM();
+      }
+      updated(changedProperties) {
+        super.updated(changedProperties);
+        this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+        if (changedProperties.has("resizable") || changedProperties.has("selected")) {
+          this.appendResizerToDOM();
+        }
+      }
+      appendResizerToDOM() {
+        this.removeExistingResizer();
+        if (this.resizable && this.selected) {
+          const resizerTemplate = this.renderResizer();
+          if (resizerTemplate) {
+            const resizerContainer = document.createElement("div");
+            resizerContainer.className = "mixin-resizer-container";
+            resizerContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+          `;
+            this.shadowRoot?.appendChild(resizerContainer);
+            lit.render(resizerTemplate, resizerContainer);
+          }
+        }
+      }
+      removeExistingResizer() {
+        const existingResizer = this.shadowRoot?.querySelector(".mixin-resizer-container");
+        if (existingResizer) {
+          existingResizer.remove();
+        }
       }
     }
     __decorateClass([

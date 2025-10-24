@@ -1,6 +1,6 @@
 import { XYPanZoom, getBezierPath as getBezierPath$1, getSmoothStepPath as getSmoothStepPath$1, getStraightPath as getStraightPath$1, Position } from "@xyflow/system";
 import { Position as Position2 } from "@xyflow/system";
-import { css, LitElement, html as html$1, svg } from "lit";
+import { css, LitElement, html as html$1, svg, render } from "lit";
 import { unsafeStatic, html } from "lit/static-html.js";
 import { property, customElement } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
@@ -3465,10 +3465,6 @@ const NodeMixin = (superClass) => {
       document.removeEventListener("click", this.handleGlobalClick);
       this.cleanup();
     }
-    updated(changedProperties) {
-      super.updated(changedProperties);
-      this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
-    }
     cleanup() {
       document.removeEventListener("mousemove", this.handleMouseMove);
       document.removeEventListener("mouseup", this.handleMouseUp);
@@ -3494,26 +3490,52 @@ const NodeMixin = (superClass) => {
       `;
     }
     /**
-     * Override the render method to automatically include the resizer
-     * Components using this mixin should call super.render() in their render method
-     * and the resizer will be automatically appended
+     * Helper method to get just the resizer HTML
+     * Use this in components that override render() method
      */
-    render() {
-      const componentRender = this.renderComponent();
-      if (Array.isArray(componentRender)) {
-        return [...componentRender, this.renderResizer()];
-      }
-      return html$1`
-        ${componentRender}
-        ${this.renderResizer()}
-      `;
+    getResizer() {
+      return this.renderResizer();
     }
     /**
-     * Override this method in components to provide their content
-     * The mixin will automatically append the resizer
+     * Automatically append resizer to DOM after rendering
+     * This works even when components override render() method
      */
-    renderComponent() {
-      return html$1``;
+    firstUpdated() {
+      this.appendResizerToDOM();
+    }
+    updated(changedProperties) {
+      super.updated(changedProperties);
+      this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+      if (changedProperties.has("resizable") || changedProperties.has("selected")) {
+        this.appendResizerToDOM();
+      }
+    }
+    appendResizerToDOM() {
+      this.removeExistingResizer();
+      if (this.resizable && this.selected) {
+        const resizerTemplate = this.renderResizer();
+        if (resizerTemplate) {
+          const resizerContainer = document.createElement("div");
+          resizerContainer.className = "mixin-resizer-container";
+          resizerContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+          `;
+          this.shadowRoot?.appendChild(resizerContainer);
+          render(resizerTemplate, resizerContainer);
+        }
+      }
+    }
+    removeExistingResizer() {
+      const existingResizer = this.shadowRoot?.querySelector(".mixin-resizer-container");
+      if (existingResizer) {
+        existingResizer.remove();
+      }
     }
   }
   __decorateClass([

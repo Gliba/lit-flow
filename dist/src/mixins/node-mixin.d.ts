@@ -9,6 +9,10 @@
  * - Event dispatching for all interactions
  *
  * Usage:
+ *
+ * The mixin automatically appends the resizer to the DOM when resizable=true and selected=true.
+ * Components can use any render method - the resizer will be automatically added.
+ *
  * ```typescript
  * @customElement('my-node')
  * export class MyNode extends NodeMixin(LitElement) {
@@ -19,11 +23,20 @@
  *     this.minHeight = 50;
  *   }
  *
- *   protected renderComponent() {
- *     return html`
- *       <div>My node content</div>
- *     `;
+ *   // Any render method works - resizer is automatically appended
+ *   render() {
+ *     return html`<div>My node content</div>`;
  *   }
+ * }
+ * ```
+ *
+ * For manual control, you can also use:
+ * ```typescript
+ * render() {
+ *   return html`
+ *     <div>My node content</div>
+ *     ${this.getResizer()}
+ *   `;
  * }
  * ```
  */
@@ -47,6 +60,7 @@ export interface NodeMixinInterface {
     maxHeight: number;
     keepAspectRatio: boolean;
     renderComponent(): any;
+    getResizer(): any;
 }
 export declare const NodeMixin: <T extends Constructor<LitElement>>(superClass: T) => any;
 type Constructor<T = {}> = new (...args: any[]) => T;
