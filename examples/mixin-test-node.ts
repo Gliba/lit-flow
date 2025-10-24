@@ -172,7 +172,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
   }
   
 
-  protected renderComponent() {
+  render() {
     const data = this.data as MixinTestData;
     const title = data?.title || 'Mixin Node';
     const description = data?.description || 'This node uses NodeMixin for functionality';

@@ -9,6 +9,10 @@
  * - Event dispatching for all interactions
  * 
  * Usage:
+ * 
+ * The mixin automatically appends the resizer to the DOM when resizable=true and selected=true.
+ * Components can use any render method - the resizer will be automatically added.
+ * 
  * ```typescript
  * @customElement('my-node')
  * export class MyNode extends NodeMixin(LitElement) {
@@ -19,16 +23,25 @@
  *     this.minHeight = 50;
  *   }
  * 
- *   protected renderComponent() {
- *     return html`
- *       <div>My node content</div>
- *     `;
+ *   // Any render method works - resizer is automatically appended
+ *   render() {
+ *     return html`<div>My node content</div>`;
  *   }
+ * }
+ * ```
+ * 
+ * For manual control, you can also use:
+ * ```typescript
+ * render() {
+ *   return html`
+ *     <div>My node content</div>
+ *     ${this.getResizer()}
+ *   `;
  * }
  * ```
  */
 
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, render } from 'lit';
 import { property } from 'lit/decorators.js';
 
 export interface NodeMixinInterface {
@@ -47,6 +60,7 @@ export interface NodeMixinInterface {
   maxHeight: number;
   keepAspectRatio: boolean;
   renderComponent(): any;
+  getResizer(): any;
 }
 
 export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
@@ -219,11 +233,6 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       this.cleanup();
     }
 
-    updated(changedProperties: Map<string | number | symbol, unknown>) {
-      super.updated(changedProperties);
-      // Apply transform for positioning
-      this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
-    }
 
     private handleClick = (e: MouseEvent) => {
       e.stopPropagation();
@@ -559,32 +568,67 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     }
 
     /**
-     * Override the render method to automatically include the resizer
-     * Components using this mixin should call super.render() in their render method
-     * and the resizer will be automatically appended
+     * Helper method to get just the resizer HTML
+     * Use this in components that override render() method
      */
-    render() {
-      // Get the component's render result
-      const componentRender = this.renderComponent();
-      
-      // If componentRender is an array, append the resizer
-      if (Array.isArray(componentRender)) {
-        return [...componentRender, this.renderResizer()];
-      }
-      
-      // If componentRender is a single template, return both
-      return html`
-        ${componentRender}
-        ${this.renderResizer()}
-      `;
+    protected getResizer() {
+      return this.renderResizer();
     }
 
     /**
-     * Override this method in components to provide their content
-     * The mixin will automatically append the resizer
+     * Automatically append resizer to DOM after rendering
+     * This works even when components override render() method
      */
-    protected renderComponent() {
-      return html``;
+    firstUpdated() {
+      this.appendResizerToDOM();
+    }
+
+    updated(changedProperties: Map<string | number | symbol, unknown>) {
+      super.updated(changedProperties);
+      // Apply transform for positioning
+      this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+      
+      // Re-append resizer if resizable or selected state changed
+      if (changedProperties.has('resizable') || changedProperties.has('selected')) {
+        this.appendResizerToDOM();
+      }
+    }
+
+    private appendResizerToDOM() {
+      // Remove existing resizer if it exists
+      this.removeExistingResizer();
+      
+      // Only append resizer if resizable and selected
+      if (this.resizable && this.selected) {
+        const resizerTemplate = this.renderResizer();
+        if (resizerTemplate) {
+          // Create a container for the resizer
+          const resizerContainer = document.createElement('div');
+          resizerContainer.className = 'mixin-resizer-container';
+          resizerContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10;
+          `;
+          
+          // Append to shadow DOM
+          this.shadowRoot?.appendChild(resizerContainer);
+          
+          // Render the resizer content using Lit's render function
+          render(resizerTemplate, resizerContainer);
+        }
+      }
+    }
+
+    private removeExistingResizer() {
+      const existingResizer = this.shadowRoot?.querySelector('.mixin-resizer-container');
+      if (existingResizer) {
+        existingResizer.remove();
+      }
     }
 
     private handleResizeHandleClick = (handle: string) => {
