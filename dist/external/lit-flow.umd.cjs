@@ -3473,7 +3473,7 @@
       }
       /**
        * Renders the resizer handles and border when the node is resizable and selected
-       * Components using this mixin should call this method in their render() method
+       * This is now called automatically by the mixin's render method
        */
       renderResizer() {
         if (!this.resizable || !this.selected) {
@@ -3490,6 +3490,28 @@
         <div class="resize-handle w" @mousedown=${this.handleResizeHandleClick("w")}></div>
         <div class="resize-handle e" @mousedown=${this.handleResizeHandleClick("e")}></div>
       `;
+      }
+      /**
+       * Override the render method to automatically include the resizer
+       * Components using this mixin should call super.render() in their render method
+       * and the resizer will be automatically appended
+       */
+      render() {
+        const componentRender = this.renderComponent();
+        if (Array.isArray(componentRender)) {
+          return [...componentRender, this.renderResizer()];
+        }
+        return lit.html`
+        ${componentRender}
+        ${this.renderResizer()}
+      `;
+      }
+      /**
+       * Override this method in components to provide their content
+       * The mixin will automatically append the resizer
+       */
+      renderComponent() {
+        return lit.html``;
       }
     }
     __decorateClass([

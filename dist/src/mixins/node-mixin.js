@@ -19,10 +19,9 @@
  *     this.minHeight = 50;
  *   }
  *
- *   render() {
+ *   protected renderComponent() {
  *     return html`
  *       <div>My node content</div>
- *       ${this.renderResizer()}
  *     `;
  *   }
  * }
@@ -486,7 +485,7 @@ export const NodeMixin = (superClass) => {
         }
         /**
          * Renders the resizer handles and border when the node is resizable and selected
-         * Components using this mixin should call this method in their render() method
+         * This is now called automatically by the mixin's render method
          */
         renderResizer() {
             if (!this.resizable || !this.selected) {
@@ -503,6 +502,31 @@ export const NodeMixin = (superClass) => {
         <div class="resize-handle w" @mousedown=${this.handleResizeHandleClick('w')}></div>
         <div class="resize-handle e" @mousedown=${this.handleResizeHandleClick('e')}></div>
       `;
+        }
+        /**
+         * Override the render method to automatically include the resizer
+         * Components using this mixin should call super.render() in their render method
+         * and the resizer will be automatically appended
+         */
+        render() {
+            // Get the component's render result
+            const componentRender = this.renderComponent();
+            // If componentRender is an array, append the resizer
+            if (Array.isArray(componentRender)) {
+                return [...componentRender, this.renderResizer()];
+            }
+            // If componentRender is a single template, return both
+            return html `
+        ${componentRender}
+        ${this.renderResizer()}
+      `;
+        }
+        /**
+         * Override this method in components to provide their content
+         * The mixin will automatically append the resizer
+         */
+        renderComponent() {
+            return html ``;
         }
     }
     __decorate([

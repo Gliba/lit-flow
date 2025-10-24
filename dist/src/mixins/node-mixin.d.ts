@@ -19,10 +19,9 @@
  *     this.minHeight = 50;
  *   }
  *
- *   render() {
+ *   protected renderComponent() {
  *     return html`
  *       <div>My node content</div>
- *       ${this.renderResizer()}
  *     `;
  *   }
  * }
@@ -47,7 +46,7 @@ export interface NodeMixinInterface {
     minHeight: number;
     maxHeight: number;
     keepAspectRatio: boolean;
-    renderResizer(): any;
+    renderComponent(): any;
 }
 export declare const NodeMixin: <T extends Constructor<LitElement>>(superClass: T) => any;
 type Constructor<T = {}> = new (...args: any[]) => T;

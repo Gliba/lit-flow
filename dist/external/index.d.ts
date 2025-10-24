@@ -483,7 +483,7 @@ export declare interface NodeMixinInterface {
     minHeight: number;
     maxHeight: number;
     keepAspectRatio: boolean;
-    renderResizer(): any;
+    renderComponent(): any;
 }
 
 export declare class NodeResizer extends LitElement {
