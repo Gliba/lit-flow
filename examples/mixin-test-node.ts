@@ -13,6 +13,8 @@ interface MixinTestData {
   description?: string;
   color?: string;
   icon?: string;
+  maxInitialHeight?: number;
+  itemCount?: number; // For testing: how many items to render
 }
 
 export class MixinTestNode extends NodeMixin(LitElement) {
@@ -79,6 +81,27 @@ export class MixinTestNode extends NodeMixin(LitElement) {
           font-size: 12px;
           color: #6b7280;
           line-height: 1.4;
+        }
+
+        .content-area {
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+          min-height: 0;
+          margin: 8px 0;
+        }
+
+        .content-item {
+          padding: 8px;
+          margin-bottom: 4px;
+          background: #f3f4f6;
+          border-radius: 4px;
+          font-size: 12px;
+          color: #374151;
+        }
+
+        .content-item:last-child {
+          margin-bottom: 0;
         }
 
         .node-footer {
@@ -172,15 +195,29 @@ export class MixinTestNode extends NodeMixin(LitElement) {
   }
   
 
+  connectedCallback() {
+    super.connectedCallback();
+    
+    // Set maxInitialHeight from data if provided
+    const data = this.data as MixinTestData;
+    if (data?.maxInitialHeight !== undefined) {
+      (this as any).maxInitialHeight = data.maxInitialHeight;
+    }
+  }
+
   render() {
     const data = this.data as MixinTestData;
     const title = data?.title || 'Mixin Node';
     const description = data?.description || 'This node uses NodeMixin for functionality';
     const color = data?.color || '#1fa2ff';
     const icon = data?.icon || '🔧';
+    const itemCount = data?.itemCount || 5; // Default to 5 items for testing
 
     // Set CSS custom property for color
     (this as any).style.setProperty('--node-color', color);
+
+    // Generate items for testing height
+    const items = Array.from({ length: itemCount }, (_, i) => `Item ${i + 1}`);
 
     return html`
       <div class="node-content">
@@ -190,6 +227,13 @@ export class MixinTestNode extends NodeMixin(LitElement) {
         </div>
         
         <div class="node-description">${description}</div>
+        
+        <!-- Content area to test height limiting -->
+        <div class="content-area">
+          ${items.map(item => html`
+            <div class="content-item">${item}</div>
+          `)}
+        </div>
         
         <div class="node-footer">
           <span class="node-badge">Mixin</span>

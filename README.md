@@ -542,6 +542,7 @@ interface NodeMixinInterface {
   minHeight: number;
   maxHeight: number;
   keepAspectRatio: boolean;
+  maxInitialHeight: number;
   
   // Flow instance
   instance: any;
@@ -575,6 +576,97 @@ constructor() {
   this.keepAspectRatio = true;
 }
 ```
+
+#### Initial Height Control
+
+The `maxInitialHeight` property allows you to control the initial height of a node based on its content. This is particularly useful when content is loaded dynamically or varies in size.
+
+**Behavior:**
+- If `maxInitialHeight` is `0` (default): Height adjustment is disabled, node fits to content naturally
+- If content height **exceeds** `maxInitialHeight`: Node height is capped at `maxInitialHeight`, and content becomes scrollable
+- If content height **fits within** `maxInitialHeight`: Node height fits to content (no height constraint applied)
+
+**Usage:**
+
+```typescript
+@customElement('content-node')
+export class ContentNode extends NodeMixin(LitElement) {
+  connectedCallback() {
+    super.connectedCallback();
+    
+    // Set maxInitialHeight from data if provided
+    const data = this.data as { maxInitialHeight?: number };
+    if (data?.maxInitialHeight !== undefined) {
+      this.maxInitialHeight = data.maxInitialHeight;
+    }
+  }
+
+  render() {
+    const items = this.data?.items || [];
+    
+    return html`
+      <div class="node-content">
+        <div class="header">${this.data?.title || 'Node'}</div>
+        <!-- Scrollable content area -->
+        <div class="content-area">
+          ${items.map(item => html`<div class="item">${item}</div>`)}
+        </div>
+      </div>
+    `;
+  }
+  
+  static styles = [
+    ...(super.styles || []),
+    css`
+      .content-area {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        min-height: 0;
+      }
+    `
+  ];
+}
+```
+
+**Setting from Data:**
+
+```javascript
+flowCanvas.instance.setNodes([
+  {
+    id: 'node-1',
+    type: 'content-node',
+    position: { x: 100, y: 100 },
+    data: {
+      title: 'Items List',
+      items: ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5'],
+      maxInitialHeight: 200  // Will cap at 200px if content exceeds
+    }
+  }
+]);
+```
+
+**Manual Height Adjustment:**
+
+You can also manually trigger height adjustment after content loads:
+
+```typescript
+async loadData() {
+  const data = await fetch('/api/data').then(r => r.json());
+  // Render content...
+  
+  // After content is rendered, adjust height if needed
+  await this.updateComplete;
+  this.adjustHeightToContent();
+}
+```
+
+**Important Notes:**
+- Height adjustment only applies if `maxInitialHeight > 0`
+- The adjustment happens automatically in `firstUpdated()` lifecycle
+- Height adjustment respects resize constraints (`minHeight`, `maxHeight`)
+- After initial sizing, users can still resize the node manually if `resizable` is enabled
+- Make sure your content area has `overflow-y: auto` for scrolling when content exceeds the limit
 
 ### Event System
 

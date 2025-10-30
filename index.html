@@ -112,10 +112,69 @@
 
         // Set nodes first - they will be registered as pending
         flowCanvas.setNodes([
+          // Mixin test nodes demonstrating maxInitialHeight
+          {
+            id: 'mixin-test-small',
+            type: 'mixin-test',
+            position: { x: 100, y: 100 },
+            data: {
+              title: 'Small Content (2 items)',
+              description: 'Content fits - no height limit',
+              color: '#1fa2ff',
+              icon: '📝',
+              itemCount: 2
+            },
+            resizable: true,
+            connectable: true
+          },
+          {
+            id: 'mixin-test-medium',
+            type: 'mixin-test',
+            position: { x: 400, y: 100 },
+            data: {
+              title: 'Medium Content (5 items)',
+              description: 'Content fits within 250px',
+              color: '#10b981',
+              icon: '📋',
+              itemCount: 5
+            },
+            resizable: true,
+            connectable: true
+          },
+          {
+            id: 'mixin-test-large',
+            type: 'mixin-test',
+            position: { x: 700, y: 100 },
+            data: {
+              title: 'Large Content (8 items)',
+              description: 'Content exceeds 200px - will cap',
+              color: '#f59e0b',
+              icon: '📄',
+              maxInitialHeight: 200,
+              itemCount: 8
+            },
+            resizable: true,
+            connectable: true
+          },
+          {
+            id: 'mixin-test-no-limit',
+            type: 'mixin-test',
+            position: { x: 1000, y: 100 },
+            data: {
+              title: 'No Height Limit',
+              description: 'maxInitialHeight = 0, fits to content',
+              color: '#ef4444',
+              icon: '📑',
+              maxInitialHeight: 0,
+              itemCount: 6
+            },
+            resizable: true,
+            connectable: true
+          },
           {
             id: 'node-1',
             type: 'default',
-            position: { x: 50, y: 50 },
+            position: { x: 50, y: 350 },
             data: { label: 'Regular Node' },
             width: 150,
             height: 50

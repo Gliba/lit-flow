@@ -59,8 +59,10 @@ export interface NodeMixinInterface {
   minHeight: number;
   maxHeight: number;
   keepAspectRatio: boolean;
+  maxInitialHeight: number;
   renderComponent(): any;
   getResizer(): any;
+  adjustHeightToContent(): void;
   notifyHandlesUpdated(options?: { handleIds?: string[]; updateDimensions?: boolean }): Promise<void>;
 }
 
@@ -204,6 +206,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     @property({ type: Number }) minHeight = 10;
     @property({ type: Number }) maxHeight = Number.MAX_VALUE;
     @property({ type: Boolean }) keepAspectRatio = false;
+    @property({ type: Number }) maxInitialHeight = 0; // 0 = no initial height limit, otherwise sets max height if content exceeds
 
     private isDragging = false;
     private dragStart = { x: 0, y: 0 };
@@ -582,12 +585,26 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
      */
     firstUpdated() {
       this.appendResizerToDOM();
+      
+      // Adjust height based on content and maxInitialHeight
+      // Wait a tick for content to render, then measure
+      Promise.resolve().then(() => {
+        this.adjustHeightToContent();
+      });
     }
 
     updated(changedProperties: Map<string | number | symbol, unknown>) {
       super.updated(changedProperties);
       // Apply transform for positioning
       this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+      
+      // Adjust height to content if maxInitialHeight changed (only if not resizing)
+      if (changedProperties.has('maxInitialHeight') && !this.isResizing) {
+        // Wait a tick for content to render, then adjust height
+        Promise.resolve().then(() => {
+          this.adjustHeightToContent();
+        });
+      }
       
       // Re-append resizer if resizable or selected state changed
       if (changedProperties.has('resizable') || changedProperties.has('selected')) {
@@ -640,6 +657,66 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         this.handleResizeStart(e, handle);
       };
     };
+
+    /**
+     * Adjusts node height to fit content up to maxInitialHeight
+     * If maxInitialHeight is 0, this method does nothing
+     * If content height > maxInitialHeight: sets height to maxInitialHeight (content will scroll)
+     * If content height <= maxInitialHeight: doesn't set height (lets it fit to content)
+     * Called automatically in firstUpdated, but can be called manually after content loads
+     */
+    protected adjustHeightToContent() {
+      // Only apply logic if maxInitialHeight is set (> 0)
+      if (this.maxInitialHeight <= 0) return;
+      
+      // Don't adjust if currently resizing or if instance/node not ready
+      if (!this.instance || !this.id || this.isResizing) return;
+      
+      // Temporarily remove height constraint to measure actual content height
+      const originalHeight = this.style.height;
+      this.style.height = 'auto';
+      
+      // Force a reflow to ensure content is measured
+      this.offsetHeight;
+      
+      // Measure the actual content height (scrollHeight includes all content)
+      const contentHeight = this.scrollHeight || this.getBoundingClientRect().height;
+      
+      // Only set height if content exceeds maxInitialHeight
+      if (contentHeight > this.maxInitialHeight) {
+        // Content exceeds limit - set height to maxInitialHeight
+        this.style.height = `${this.maxInitialHeight}px`;
+        
+        // Update instance with calculated height
+        this.instance.updateNode(this.id, {
+          height: this.maxInitialHeight,
+          measured: { 
+            width: this.offsetWidth || this.getBoundingClientRect().width,
+            height: this.maxInitialHeight 
+          }
+        });
+      } else {
+        // Content fits within limit - don't set height, let it fit naturally
+        // But restore original height style if it was set
+        if (originalHeight) {
+          this.style.height = originalHeight;
+        } else {
+          // Clear height to let content determine size
+          this.style.height = '';
+        }
+        
+        // Update instance with actual content height
+        if (contentHeight > 0) {
+          this.instance.updateNode(this.id, {
+            height: contentHeight,
+            measured: { 
+              width: this.offsetWidth || this.getBoundingClientRect().width,
+              height: contentHeight 
+            }
+          });
+        }
+      }
+    }
 
     /**
      * Notifies the flow instance that handles have been dynamically added/updated
