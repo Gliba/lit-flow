@@ -604,6 +604,93 @@ this.addEventListener('resize-end', (e) => {
 });
 ```
 
+### Dynamic Handle Updates
+
+When adding handles dynamically (e.g., after loading API data or rendering fields), you need to notify the flow instance so it can recalculate edge positions. The `notifyHandlesUpdated()` method makes this easy:
+
+```typescript
+import { LitElement, html, render } from 'lit';
+import { NodeMixin } from 'lit-flow';
+
+@customElement('dynamic-handles-node')
+export class DynamicHandlesNode extends NodeMixin(LitElement) {
+  private async loadFields() {
+    // Fetch fields from API
+    const fields = await fetch('/api/fields').then(r => r.json());
+    
+    // Render fields with handles
+    const container = this.shadowRoot.querySelector('.fields-container');
+    const fieldsTemplate = html`
+      ${fields.map(field => html`
+        <div class="field-row">
+          <div class="field-name">${field.name}</div>
+          <!-- Left handle -->
+          <div 
+            class="field-handle left"
+            data-handle-id="${this.id}-${field.name}-left"
+            @mousedown=${this.onHandleMouseDown(field.name, 'left')}
+          ></div>
+          <!-- Right handle -->
+          <div 
+            class="field-handle right"
+            data-handle-id="${this.id}-${field.name}-right"
+            @mousedown=${this.onHandleMouseDown(field.name, 'right')}
+          ></div>
+        </div>
+      `)}
+    `;
+    
+    render(fieldsTemplate, container);
+    
+    // ✨ Notify flow instance that handles are ready
+    // This ensures connections update properly after dynamic content loads
+    await this.notifyHandlesUpdated({
+      handleIds: fields.flatMap(f => [
+        `${this.id}-${f.name}-left`,
+        `${this.id}-${f.name}-right`
+      ])
+    });
+  }
+}
+```
+
+**Method Signature:**
+
+```typescript
+protected async notifyHandlesUpdated(options?: {
+  /** Optional list of handle IDs that were added/updated */
+  handleIds?: string[];
+  /** Whether to update node dimensions (default: true) */
+  updateDimensions?: boolean;
+}): Promise<void>
+```
+
+**What it does:**
+
+1. **Waits for DOM update** - Ensures handles are fully rendered before notifying
+2. **Updates node dimensions** - Triggers flow canvas to recalculate handle positions
+3. **Dispatches event** - Sends `node-handles-updated` event for flow canvas to listen to
+
+**Usage Examples:**
+
+```typescript
+// Basic usage - just notify after handles are added
+await this.notifyHandlesUpdated();
+
+// With handle IDs for better tracking
+await this.notifyHandlesUpdated({
+  handleIds: ['handle-1', 'handle-2', 'handle-3']
+});
+
+// Skip dimension update if you only want to dispatch event
+await this.notifyHandlesUpdated({
+  updateDimensions: false,
+  handleIds: ['handle-1']
+});
+```
+
+**Important:** Always call `notifyHandlesUpdated()` after using Lit's `render()` function to dynamically add handles. Without this, connections may not render correctly until the node is manually resized or moved.
+
 ### Advanced Example - Database Table Node
 
 ```typescript
