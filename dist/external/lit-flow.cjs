@@ -3080,6 +3080,7 @@ const NodeMixin = (superClass) => {
       this.minHeight = 10;
       this.maxHeight = Number.MAX_VALUE;
       this.keepAspectRatio = false;
+      this.maxInitialHeight = 0;
       this.isDragging = false;
       this.dragStart = { x: 0, y: 0 };
       this.nodeStart = { x: 0, y: 0 };
@@ -3503,10 +3504,18 @@ const NodeMixin = (superClass) => {
      */
     firstUpdated() {
       this.appendResizerToDOM();
+      Promise.resolve().then(() => {
+        this.adjustHeightToContent();
+      });
     }
     updated(changedProperties) {
       super.updated(changedProperties);
       this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+      if (changedProperties.has("maxInitialHeight") && !this.isResizing) {
+        Promise.resolve().then(() => {
+          this.adjustHeightToContent();
+        });
+      }
       if (changedProperties.has("resizable") || changedProperties.has("selected")) {
         this.appendResizerToDOM();
       }
@@ -3536,6 +3545,46 @@ const NodeMixin = (superClass) => {
       const existingResizer = this.shadowRoot?.querySelector(".mixin-resizer-container");
       if (existingResizer) {
         existingResizer.remove();
+      }
+    }
+    /**
+     * Adjusts node height to fit content up to maxInitialHeight
+     * If maxInitialHeight is 0, this method does nothing
+     * If content height > maxInitialHeight: sets height to maxInitialHeight (content will scroll)
+     * If content height <= maxInitialHeight: doesn't set height (lets it fit to content)
+     * Called automatically in firstUpdated, but can be called manually after content loads
+     */
+    adjustHeightToContent() {
+      if (this.maxInitialHeight <= 0) return;
+      if (!this.instance || !this.id || this.isResizing) return;
+      const originalHeight = this.style.height;
+      this.style.height = "auto";
+      this.offsetHeight;
+      const contentHeight = this.scrollHeight || this.getBoundingClientRect().height;
+      if (contentHeight > this.maxInitialHeight) {
+        this.style.height = `${this.maxInitialHeight}px`;
+        this.instance.updateNode(this.id, {
+          height: this.maxInitialHeight,
+          measured: {
+            width: this.offsetWidth || this.getBoundingClientRect().width,
+            height: this.maxInitialHeight
+          }
+        });
+      } else {
+        if (originalHeight) {
+          this.style.height = originalHeight;
+        } else {
+          this.style.height = "";
+        }
+        if (contentHeight > 0) {
+          this.instance.updateNode(this.id, {
+            height: contentHeight,
+            measured: {
+              width: this.offsetWidth || this.getBoundingClientRect().width,
+              height: contentHeight
+            }
+          });
+        }
       }
     }
     /**
@@ -3628,6 +3677,9 @@ const NodeMixin = (superClass) => {
   __decorateClass([
     decorators_js.property({ type: Boolean })
   ], NodeMixinClass.prototype, "keepAspectRatio");
+  __decorateClass([
+    decorators_js.property({ type: Number })
+  ], NodeMixinClass.prototype, "maxInitialHeight");
   return NodeMixinClass;
 };
 Object.defineProperty(exports, "Position", {

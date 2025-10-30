@@ -483,8 +483,10 @@ export declare interface NodeMixinInterface {
     minHeight: number;
     maxHeight: number;
     keepAspectRatio: boolean;
+    maxInitialHeight: number;
     renderComponent(): any;
     getResizer(): any;
+    adjustHeightToContent(): void;
     notifyHandlesUpdated(options?: {
         handleIds?: string[];
         updateDimensions?: boolean;
