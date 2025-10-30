@@ -485,6 +485,10 @@ export declare interface NodeMixinInterface {
     keepAspectRatio: boolean;
     renderComponent(): any;
     getResizer(): any;
+    notifyHandlesUpdated(options?: {
+        handleIds?: string[];
+        updateDimensions?: boolean;
+    }): Promise<void>;
 }
 
 export declare class NodeResizer extends LitElement {

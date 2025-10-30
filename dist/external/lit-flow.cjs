@@ -3538,6 +3538,53 @@ const NodeMixin = (superClass) => {
         existingResizer.remove();
       }
     }
+    /**
+     * Notifies the flow instance that handles have been dynamically added/updated
+     * Call this after using Lit's render() to add handles dynamically (e.g., after API data loads)
+     * 
+     * This method:
+     * 1. Waits for DOM update to complete
+     * 2. Updates node dimensions to trigger handle position recalculation
+     * 3. Dispatches a custom event for flow canvas to listen to
+     * 
+     * @example
+     * ```typescript
+     * async loadFields() {
+     *   const fields = await fetchFields();
+     *   const container = this.shadowRoot.querySelector('.fields-container');
+     *   render(fieldsTemplate, container);
+     *   
+     *   // Notify flow instance after handles are rendered
+     *   this.notifyHandlesUpdated();
+     * }
+     * ```
+     */
+    async notifyHandlesUpdated(options) {
+      const { handleIds, updateDimensions = true } = options || {};
+      await this.updateComplete;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (this.instance && this.id) {
+        if (updateDimensions) {
+          const rect = this.getBoundingClientRect();
+          const currentWidth = rect.width;
+          const currentHeight = rect.height;
+          this.instance.updateNode(this.id, {
+            width: currentWidth,
+            height: currentHeight,
+            measured: { width: currentWidth, height: currentHeight }
+          });
+        }
+        this.dispatchEvent(new CustomEvent("node-handles-updated", {
+          detail: {
+            nodeId: this.id,
+            handleIds: handleIds || [],
+            timestamp: Date.now()
+          },
+          bubbles: true,
+          composed: true
+        }));
+      }
+    }
   }
   __decorateClass([
     decorators_js.property({ type: String, reflect: true })

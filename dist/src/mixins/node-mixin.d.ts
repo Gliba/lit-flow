@@ -61,6 +61,10 @@ export interface NodeMixinInterface {
     keepAspectRatio: boolean;
     renderComponent(): any;
     getResizer(): any;
+    notifyHandlesUpdated(options?: {
+        handleIds?: string[];
+        updateDimensions?: boolean;
+    }): Promise<void>;
 }
 export declare const NodeMixin: <T extends Constructor<LitElement>>(superClass: T) => any;
 type Constructor<T = {}> = new (...args: any[]) => T;
