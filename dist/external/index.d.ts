@@ -477,6 +477,7 @@ export declare interface NodeMixinInterface {
     instance: any;
     resizable: boolean;
     draggable: boolean;
+    drag_handle_selector: string | null;
     connectable: boolean;
     minWidth: number;
     maxWidth: number;

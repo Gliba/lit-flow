@@ -675,6 +675,7 @@
         .draggable=${node.draggable !== false}
         .connectable=${node.connectable !== false}
         .resizable=${node.resizable || false}
+        .drag_handle_selector=${node.drag_handle_selector || null}
         .instance=${this.instance}
         @handle-start=${this.onHandleStart}
       ></${tag}>
@@ -3071,6 +3072,7 @@
         this.instance = null;
         this.resizable = false;
         this.draggable = true;
+        this.drag_handle_selector = null;
         this.connectable = true;
         this.minWidth = 10;
         this.maxWidth = Number.MAX_VALUE;
@@ -3084,6 +3086,7 @@
         this.isResizing = false;
         this.resizeStart = { x: 0, y: 0, width: 0, height: 0 };
         this.resizeHandle = "";
+        this.dragHandleElement = null;
         this.handleClick = (e) => {
           e.stopPropagation();
           if (!this.isDragging) {
@@ -3135,6 +3138,9 @@
           if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
             this.isDragging = true;
             this.dragging = true;
+            if (this.dragHandleElement) {
+              this.dragHandleElement.style.cursor = "grabbing";
+            }
             if (this.instance) {
               this.instance.updateNode(this.id, { dragging: true });
             }
@@ -3151,6 +3157,9 @@
         this.handleMouseUp = () => {
           if (this.isDragging && this.instance) {
             this.instance.updateNode(this.id, { dragging: false });
+          }
+          if (this.dragHandleElement && this.isDragging) {
+            this.dragHandleElement.style.cursor = "grab";
           }
           if (this.isResizing) {
             this.handleResizeEnd();
@@ -3342,6 +3351,11 @@
         transition: var(--node-transition, box-shadow 0.2s);
       }
 
+      /* When drag_handle_selector is set, default cursor is normal (not grab) */
+      :host([data-drag-handle-selector]) {
+        cursor: default;
+      }
+
       :host(:hover) {
         box-shadow: var(--node-hover-shadow, 0 4px 6px rgba(0, 0, 0, 0.15));
       }
@@ -3451,7 +3465,7 @@
       }
       connectedCallback() {
         super.connectedCallback();
-        if (this.draggable) {
+        if (this.draggable && !this.drag_handle_selector) {
           this.addEventListener("mousedown", this.handleMouseDown);
         }
         this.addEventListener("click", this.handleClick);
@@ -3462,6 +3476,7 @@
         this.removeEventListener("mousedown", this.handleMouseDown);
         this.removeEventListener("click", this.handleClick);
         document.removeEventListener("click", this.handleGlobalClick);
+        this.removeDragHandleListener();
         this.cleanup();
       }
       cleanup() {
@@ -3501,7 +3516,11 @@
        */
       firstUpdated() {
         this.appendResizerToDOM();
+        if (this.drag_handle_selector) {
+          this.setAttribute("data-drag-handle-selector", "");
+        }
         Promise.resolve().then(() => {
+          this.attachDragHandleListener();
           this.adjustHeightToContent();
         });
       }
@@ -3515,6 +3534,18 @@
         }
         if (changedProperties.has("resizable") || changedProperties.has("selected")) {
           this.appendResizerToDOM();
+        }
+        if (changedProperties.has("drag_handle_selector") || changedProperties.has("draggable")) {
+          Promise.resolve().then(() => {
+            this.attachDragHandleListener();
+          });
+        }
+        if (changedProperties.has("drag_handle_selector")) {
+          if (this.drag_handle_selector) {
+            this.setAttribute("data-drag-handle-selector", "");
+          } else {
+            this.removeAttribute("data-drag-handle-selector");
+          }
         }
       }
       appendResizerToDOM() {
@@ -3542,6 +3573,36 @@
         const existingResizer = this.shadowRoot?.querySelector(".mixin-resizer-container");
         if (existingResizer) {
           existingResizer.remove();
+        }
+      }
+      /**
+       * Attach mousedown listener to the drag handle element if drag_handle_selector is set
+       */
+      attachDragHandleListener() {
+        this.removeDragHandleListener();
+        if (!this.draggable || !this.drag_handle_selector) {
+          return;
+        }
+        const shadowRoot = this.shadowRoot;
+        if (!shadowRoot) {
+          setTimeout(() => this.attachDragHandleListener(), 0);
+          return;
+        }
+        const dragHandleElement = shadowRoot.querySelector(this.drag_handle_selector);
+        if (dragHandleElement) {
+          this.dragHandleElement = dragHandleElement;
+          dragHandleElement.addEventListener("mousedown", this.handleMouseDown);
+          dragHandleElement.style.cursor = "grab";
+        }
+      }
+      /**
+       * Remove mousedown listener from the drag handle element
+       */
+      removeDragHandleListener() {
+        if (this.dragHandleElement) {
+          this.dragHandleElement.removeEventListener("mousedown", this.handleMouseDown);
+          this.dragHandleElement.style.cursor = "";
+          this.dragHandleElement = null;
         }
       }
       /**
@@ -3656,6 +3717,9 @@
     __decorateClass([
       decorators_js.property({ type: Boolean })
     ], NodeMixinClass.prototype, "draggable");
+    __decorateClass([
+      decorators_js.property({ type: String })
+    ], NodeMixinClass.prototype, "drag_handle_selector");
     __decorateClass([
       decorators_js.property({ type: Boolean })
     ], NodeMixinClass.prototype, "connectable");
