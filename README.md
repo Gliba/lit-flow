@@ -534,6 +534,7 @@ interface NodeMixinInterface {
   dragging: boolean;
   resizable: boolean;
   draggable: boolean;
+  dragHandleSelector: string | null;  // CSS selector for drag handle element
   connectable: boolean;
   
   // Resize constraints
@@ -556,6 +557,59 @@ interface NodeMixinInterface {
 - **Resizing** - 8-point resize handles with constraints
 - **Event Dispatching** - Comprehensive event system for all interactions
 - **Global Deselection** - Automatic deselection when clicking outside
+
+#### Restricted Drag Handle
+
+By default, the entire node can be used to drag it around the canvas. However, you can restrict dragging to a specific element using the `dragHandleSelector` property. This is useful when you want users to interact with buttons, inputs, or other interactive elements in the node body without triggering dragging.
+
+**Usage:**
+
+```typescript
+@customElement('my-node')
+export class MyNode extends NodeMixin(LitElement) {
+  constructor() {
+    super();
+    this.draggable = true;
+    // Only allow dragging from the header element
+    this.dragHandleSelector = '.node-header';
+  }
+
+  render() {
+    return html`
+      <div class="node-header">
+        Header - drag from here
+      </div>
+      <div class="node-body">
+        <button>Click me</button>
+        <input type="text" placeholder="Type here" />
+        <!-- These won't trigger dragging -->
+      </div>
+    `;
+  }
+}
+```
+
+**Setting via Node Data:**
+
+```javascript
+flowCanvas.instance.setNodes([
+  {
+    id: 'node-1',
+    type: 'my-node',
+    position: { x: 100, y: 100 },
+    dragHandleSelector: '.node-header',  // Only header can drag
+    data: {
+      title: 'Draggable Node'
+    }
+  }
+]);
+```
+
+When `dragHandleSelector` is set:
+- Only clicks within the specified element (or its children) will initiate dragging
+- Clicks elsewhere in the node body will not trigger dragging
+- Interactive elements like buttons, inputs, and links will work normally
+- The drag handle element will automatically get a `grab` cursor
 
 #### Resize Configuration
 
