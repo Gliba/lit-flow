@@ -91,6 +91,7 @@ export class FlowNode extends LitElement {
       this.addEventListener('mousedown', this.handleMouseDown);
     }
     this.addEventListener('click', this.handleClick);
+    this.addEventListener('wheel', this.handleWheel, { passive: false });
     if (this.resizable) {
       this.addEventListener('resize', this.handleResize as EventListener);
       this.addEventListener('resize-end', this.handleResizeEnd as EventListener);
@@ -102,12 +103,77 @@ export class FlowNode extends LitElement {
     super.disconnectedCallback();
     this.removeEventListener('mousedown', this.handleMouseDown);
     this.removeEventListener('click', this.handleClick);
+    this.removeEventListener('wheel', this.handleWheel);
     if (this.resizable) {
       this.removeEventListener('resize', this.handleResize as EventListener);
       this.removeEventListener('resize-end', this.handleResizeEnd as EventListener);
     }
     this.cleanup();
   }
+
+  /**
+   * Find the nearest scrollable parent element
+   */
+  private findScrollableElement(element: Element | null): HTMLElement | null {
+    if (!element || !(element instanceof HTMLElement)) return null;
+    
+    // Check if element has the nowheel class (explicitly marked as non-pannable)
+    if (element.classList.contains('nowheel')) {
+      return element;
+    }
+    
+    // Check computed styles for overflow
+    const style = window.getComputedStyle(element);
+    const overflow = style.overflow + style.overflowX + style.overflowY;
+    if (overflow.includes('auto') || overflow.includes('scroll')) {
+      // Check if element is actually scrollable (has scrollable content)
+      if (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) {
+        return element;
+      }
+    }
+    
+    // Check parent, but stop at this node's boundary (don't traverse outside the component)
+    const parent = element.parentElement;
+    if (parent && (parent === this || parent.closest('flow-node') === this || this.shadowRoot?.contains(parent))) {
+      return this.findScrollableElement(parent);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Handle wheel events to prevent panning when scrolling inside scrollable content
+   */
+  private handleWheel = (e: WheelEvent) => {
+    // Use composedPath to get the actual event path through shadow boundaries
+    const path = e.composedPath();
+    
+    // Find the first scrollable element in the event path
+    let scrollableEl: HTMLElement | null = null;
+    for (const element of path) {
+      if (element instanceof Element) {
+        scrollableEl = this.findScrollableElement(element);
+        if (scrollableEl) break;
+      }
+    }
+    
+    if (scrollableEl) {
+      // Check if the scrollable element can actually scroll in this direction
+      const canScrollVertically = 
+        (e.deltaY < 0 && scrollableEl.scrollTop > 0) ||
+        (e.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight);
+      
+      const canScrollHorizontally = 
+        (e.deltaX < 0 && scrollableEl.scrollLeft > 0) ||
+        (e.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth);
+      
+      // If we can scroll in the direction of the wheel event, prevent panning
+      if (canScrollVertically || canScrollHorizontally) {
+        // Stop propagation to prevent panning, but allow default scrolling behavior
+        e.stopPropagation();
+      }
+    }
+  };
 
   private handleClick = (e: MouseEvent) => {
     e.stopPropagation();

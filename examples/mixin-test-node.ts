@@ -229,7 +229,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
         <div class="node-description">${description}</div>
         
         <!-- Content area to test height limiting -->
-        <div class="content-area">
+        <div class="content-area nowheel">
           ${items.map(item => html`
             <div class="content-item">${item}</div>
           `)}

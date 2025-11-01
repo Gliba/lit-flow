@@ -104,6 +104,8 @@ export class FlowCanvas extends LitElement {
     preview?: { x: number; y: number } 
   } | null = null;
 
+  private isHoveringNode = false;
+
 
 
   private getNodeGeom(nodeId: string): { left: { x: number; y: number }; right: { x: number; y: number } } | null {
@@ -405,6 +407,10 @@ export class FlowCanvas extends LitElement {
       container.addEventListener('node-select', this.onNodeSelect as EventListener);
       // Edge events come from light DOM, so listen on document
       document.addEventListener('edge-select', this.onEdgeSelect as EventListener);
+      
+      // Listen for node hover events to prevent canvas panning
+      container.addEventListener('mouseenter', this.onNodeMouseEnter, true);
+      container.addEventListener('mouseleave', this.onNodeMouseLeave, true);
     }
   }
 
@@ -413,10 +419,12 @@ export class FlowCanvas extends LitElement {
     this.unsubscribe?.();
     this.instance.destroy();
     const container = this.renderRoot.querySelector('.flow-container') as HTMLElement | null;
-    container?.removeEventListener('mousemove', this.onMouseMove);
-    window.removeEventListener('mouseup', this.onMouseUp);
-    container?.removeEventListener('node-select', this.onNodeSelect as EventListener);
-    document.removeEventListener('edge-select', this.onEdgeSelect as EventListener);
+      container?.removeEventListener('mousemove', this.onMouseMove);
+      window.removeEventListener('mouseup', this.onMouseUp);
+      container?.removeEventListener('node-select', this.onNodeSelect as EventListener);
+      document.removeEventListener('edge-select', this.onEdgeSelect as EventListener);
+      container?.removeEventListener('mouseenter', this.onNodeMouseEnter, true);
+      container?.removeEventListener('mouseleave', this.onNodeMouseLeave, true);
   }
 
   /**
@@ -606,6 +614,73 @@ export class FlowCanvas extends LitElement {
     this.connection = null;
     this.requestUpdate();
   };
+
+  private onNodeMouseEnter = (e: MouseEvent) => {
+    // Check if the event originated from within a node
+    const target = e.target as HTMLElement;
+    
+    // Find the node element by checking all registered node types
+    const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+    let nodeElement: HTMLElement | null = null;
+    
+    // Check if target is a node or is inside a node
+    for (const nodeType of nodeTypes) {
+      const element = target.closest(nodeType) as HTMLElement;
+      if (element && element.id) {
+        // Verify it's actually one of our nodes
+        if (this.nodes.some(node => node.id === element.id)) {
+          nodeElement = element;
+          break;
+        }
+      }
+    }
+    
+    if (nodeElement && !this.isHoveringNode) {
+      this.isHoveringNode = true;
+      // Disable panning when hovering over a node
+      this.instance.setPanOnDrag(false);
+    }
+  };
+
+  private onNodeMouseLeave = (e: MouseEvent) => {
+    // Check if we're leaving a node
+    const target = e.target as HTMLElement;
+    const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+    let nodeElement: HTMLElement | null = null;
+    
+    for (const nodeType of nodeTypes) {
+      const element = target.closest(nodeType) as HTMLElement;
+      if (element && element.id && this.nodes.some(node => node.id === element.id)) {
+        nodeElement = element;
+        break;
+      }
+    }
+    
+    if (nodeElement && this.isHoveringNode) {
+      // Small delay to check if we're moving to another node
+      setTimeout(() => {
+        const pointElement = document.elementFromPoint(e.clientX, e.clientY);
+        if (!pointElement || !(pointElement instanceof HTMLElement) || !this.isElementNode(pointElement)) {
+          this.isHoveringNode = false;
+          // Re-enable panning when not hovering over a node
+          this.instance.setPanOnDrag(true);
+        }
+      }, 10);
+    }
+  };
+
+  private isElementNode(element: HTMLElement | null): boolean {
+    if (!element) return false;
+    const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+    
+    for (const nodeType of nodeTypes) {
+      const nodeElement = element.closest(nodeType) as HTMLElement;
+      if (nodeElement && nodeElement.id) {
+        return this.nodes.some(node => node.id === nodeElement.id);
+      }
+    }
+    return false;
+  }
 
   private onNodeSelect = (e: CustomEvent<{ nodeId: string; selected: boolean; node: any }>) => {
     const { nodeId, selected, node } = e.detail;

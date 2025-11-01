@@ -6,6 +6,7 @@
 import { XYPanZoom } from '@xyflow/system';
 import type { PanOnScrollMode, Transform } from '@xyflow/system';
 import type { Node, Edge, FlowOptions, FlowState, InternalNode, Viewport } from './types';
+import type { PanZoomUpdateOptions } from '@xyflow/system';
 
 export class FlowInstance {
   private container: HTMLElement | null = null;
@@ -22,6 +23,9 @@ export class FlowInstance {
   
   // Track nodes that are pending rendering
   private pendingNodes: string[] = [];
+  
+  // Store current pan/zoom update options for reuse
+  private panZoomUpdateOptions: PanZoomUpdateOptions | null = null;
 
   constructor(options: FlowOptions = {}) {
     this.options = {
@@ -67,7 +71,7 @@ export class FlowInstance {
     });
 
     // Enable panning/zooming interactions
-    this.panZoomInstance.update({
+    this.panZoomUpdateOptions = {
       noWheelClassName: 'nowheel',
       noPanClassName: 'nopan',
       onPaneContextMenu: undefined,
@@ -84,9 +88,23 @@ export class FlowInstance {
       lib: 'lit-flow',
       onTransformChange: (_t: Transform) => {},
       connectionInProgress: false,
-    });
+    };
+    this.panZoomInstance.update(this.panZoomUpdateOptions);
 
     this.notifySubscribers();
+  }
+
+  /**
+   * Enable or disable panning on drag
+   */
+  setPanOnDrag(enabled: boolean) {
+    if (this.panZoomInstance && this.panZoomUpdateOptions) {
+      this.panZoomUpdateOptions = {
+        ...this.panZoomUpdateOptions,
+        panOnDrag: enabled
+      };
+      this.panZoomInstance.update(this.panZoomUpdateOptions);
+    }
   }
 
   destroy() {
