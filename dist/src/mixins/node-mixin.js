@@ -30,6 +30,26 @@
  * }
  * ```
  *
+ * To restrict dragging to a specific element (e.g., only header):
+ * ```typescript
+ * @customElement('my-node')
+ * export class MyNode extends NodeMixin(LitElement) {
+ *   constructor() {
+ *     super();
+ *     this.drag_handle_selector = '.node-header'; // Only header can be used to drag
+ *   }
+ *
+ *   render() {
+ *     return html`
+ *       <div class="node-header">Header - drag from here</div>
+ *       <div class="node-body">
+ *         Body content - interactive elements here won't trigger dragging
+ *       </div>
+ *     `;
+ *   }
+ * }
+ * ```
+ *
  * For manual control, you can also use:
  * ```typescript
  * render() {
@@ -60,6 +80,7 @@ export const NodeMixin = (superClass) => {
             this.instance = null;
             this.resizable = false;
             this.draggable = true;
+            this.drag_handle_selector = null;
             this.connectable = true;
             this.minWidth = 10;
             this.maxWidth = Number.MAX_VALUE;
@@ -74,6 +95,8 @@ export const NodeMixin = (superClass) => {
             this.isResizing = false;
             this.resizeStart = { x: 0, y: 0, width: 0, height: 0 };
             this.resizeHandle = '';
+            // Drag handle element reference
+            this.dragHandleElement = null;
             this.handleClick = (e) => {
                 e.stopPropagation();
                 if (!this.isDragging) {
@@ -112,6 +135,8 @@ export const NodeMixin = (superClass) => {
                 }
                 if (!this.draggable)
                     return;
+                // If drag_handle_selector is set, the listener is only on the drag handle element
+                // So if we reach here, it means the click was on the drag handle or node (if no selector set)
                 e.preventDefault();
                 e.stopPropagation();
                 this.isDragging = false;
@@ -130,6 +155,10 @@ export const NodeMixin = (superClass) => {
                 if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
                     this.isDragging = true;
                     this.dragging = true;
+                    // Update cursor on drag handle element if it exists
+                    if (this.dragHandleElement) {
+                        this.dragHandleElement.style.cursor = 'grabbing';
+                    }
                     if (this.instance) {
                         this.instance.updateNode(this.id, { dragging: true });
                     }
@@ -146,6 +175,10 @@ export const NodeMixin = (superClass) => {
             this.handleMouseUp = () => {
                 if (this.isDragging && this.instance) {
                     this.instance.updateNode(this.id, { dragging: false });
+                }
+                // Restore cursor on drag handle element when dragging ends
+                if (this.dragHandleElement && this.isDragging) {
+                    this.dragHandleElement.style.cursor = 'grab';
                 }
                 if (this.isResizing) {
                     this.handleResizeEnd();
@@ -363,6 +396,11 @@ export const NodeMixin = (superClass) => {
         transition: var(--node-transition, box-shadow 0.2s);
       }
 
+      /* When drag_handle_selector is set, default cursor is normal (not grab) */
+      :host([data-drag-handle-selector]) {
+        cursor: default;
+      }
+
       :host(:hover) {
         box-shadow: var(--node-hover-shadow, 0 4px 6px rgba(0, 0, 0, 0.15));
       }
@@ -472,7 +510,8 @@ export const NodeMixin = (superClass) => {
         }
         connectedCallback() {
             super.connectedCallback();
-            if (this.draggable) {
+            // Only attach mousedown to entire node if no drag_handle_selector is set
+            if (this.draggable && !this.drag_handle_selector) {
                 this.addEventListener('mousedown', this.handleMouseDown);
             }
             this.addEventListener('click', this.handleClick);
@@ -485,6 +524,8 @@ export const NodeMixin = (superClass) => {
             this.removeEventListener('mousedown', this.handleMouseDown);
             this.removeEventListener('click', this.handleClick);
             document.removeEventListener('click', this.handleGlobalClick);
+            // Clean up drag handle listener
+            this.removeDragHandleListener();
             // Resizer functionality is now handled directly in the mixin
             this.cleanup();
         }
@@ -525,9 +566,13 @@ export const NodeMixin = (superClass) => {
          */
         firstUpdated() {
             this.appendResizerToDOM();
-            // Adjust height based on content and maxInitialHeight
-            // Wait a tick for content to render, then measure
+            // Set data attribute for CSS cursor styling
+            if (this.drag_handle_selector) {
+                this.setAttribute('data-drag-handle-selector', '');
+            }
+            // Wait for DOM to be fully rendered before attaching drag handle listener
             Promise.resolve().then(() => {
+                this.attachDragHandleListener();
                 this.adjustHeightToContent();
             });
         }
@@ -545,6 +590,21 @@ export const NodeMixin = (superClass) => {
             // Re-append resizer if resizable or selected state changed
             if (changedProperties.has('resizable') || changedProperties.has('selected')) {
                 this.appendResizerToDOM();
+            }
+            // Re-attach drag handle listener if drag_handle_selector or draggable changed
+            if (changedProperties.has('drag_handle_selector') || changedProperties.has('draggable')) {
+                Promise.resolve().then(() => {
+                    this.attachDragHandleListener();
+                });
+            }
+            // Update cursor style based on drag_handle_selector
+            if (changedProperties.has('drag_handle_selector')) {
+                if (this.drag_handle_selector) {
+                    this.setAttribute('data-drag-handle-selector', '');
+                }
+                else {
+                    this.removeAttribute('data-drag-handle-selector');
+                }
             }
         }
         appendResizerToDOM() {
@@ -577,6 +637,42 @@ export const NodeMixin = (superClass) => {
             const existingResizer = this.shadowRoot?.querySelector('.mixin-resizer-container');
             if (existingResizer) {
                 existingResizer.remove();
+            }
+        }
+        /**
+         * Attach mousedown listener to the drag handle element if drag_handle_selector is set
+         */
+        attachDragHandleListener() {
+            // Remove existing listener first
+            this.removeDragHandleListener();
+            // Only attach if draggable and drag_handle_selector is set
+            if (!this.draggable || !this.drag_handle_selector) {
+                return;
+            }
+            const shadowRoot = this.shadowRoot;
+            if (!shadowRoot) {
+                // Shadow root not ready yet, try again after a short delay
+                setTimeout(() => this.attachDragHandleListener(), 0);
+                return;
+            }
+            // Find the drag handle element in shadow root
+            const dragHandleElement = shadowRoot.querySelector(this.drag_handle_selector);
+            if (dragHandleElement) {
+                this.dragHandleElement = dragHandleElement;
+                // Attach the mousedown listener directly to the drag handle element
+                dragHandleElement.addEventListener('mousedown', this.handleMouseDown);
+                // Set cursor style on the drag handle - it will show grab cursor
+                dragHandleElement.style.cursor = 'grab';
+            }
+        }
+        /**
+         * Remove mousedown listener from the drag handle element
+         */
+        removeDragHandleListener() {
+            if (this.dragHandleElement) {
+                this.dragHandleElement.removeEventListener('mousedown', this.handleMouseDown);
+                this.dragHandleElement.style.cursor = '';
+                this.dragHandleElement = null;
             }
         }
         /**
@@ -712,6 +808,9 @@ export const NodeMixin = (superClass) => {
     __decorate([
         property({ type: Boolean })
     ], NodeMixinClass.prototype, "draggable", void 0);
+    __decorate([
+        property({ type: String })
+    ], NodeMixinClass.prototype, "drag_handle_selector", void 0);
     __decorate([
         property({ type: Boolean })
     ], NodeMixinClass.prototype, "connectable", void 0);

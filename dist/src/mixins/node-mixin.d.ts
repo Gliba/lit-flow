@@ -30,6 +30,26 @@
  * }
  * ```
  *
+ * To restrict dragging to a specific element (e.g., only header):
+ * ```typescript
+ * @customElement('my-node')
+ * export class MyNode extends NodeMixin(LitElement) {
+ *   constructor() {
+ *     super();
+ *     this.drag_handle_selector = '.node-header'; // Only header can be used to drag
+ *   }
+ *
+ *   render() {
+ *     return html`
+ *       <div class="node-header">Header - drag from here</div>
+ *       <div class="node-body">
+ *         Body content - interactive elements here won't trigger dragging
+ *       </div>
+ *     `;
+ *   }
+ * }
+ * ```
+ *
  * For manual control, you can also use:
  * ```typescript
  * render() {
@@ -53,6 +73,7 @@ export interface NodeMixinInterface {
     instance: any;
     resizable: boolean;
     draggable: boolean;
+    drag_handle_selector: string | null;
     connectable: boolean;
     minWidth: number;
     maxWidth: number;
