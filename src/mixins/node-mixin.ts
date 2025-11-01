@@ -36,7 +36,7 @@
  * export class MyNode extends NodeMixin(LitElement) {
  *   constructor() {
  *     super();
- *     this.dragHandleSelector = '.node-header'; // Only header can be used to drag
+ *     this.drag_handle_selector = '.node-header'; // Only header can be used to drag
  *   }
  * 
  *   render() {
@@ -73,7 +73,7 @@ export interface NodeMixinInterface {
   instance: any;
   resizable: boolean;
   draggable: boolean;
-  dragHandleSelector: string | null;
+  drag_handle_selector: string | null;
   connectable: boolean;
   minWidth: number;
   maxWidth: number;
@@ -105,7 +105,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         transition: var(--node-transition, box-shadow 0.2s);
       }
 
-      /* When dragHandleSelector is set, default cursor is normal (not grab) */
+      /* When drag_handle_selector is set, default cursor is normal (not grab) */
       :host([data-drag-handle-selector]) {
         cursor: default;
       }
@@ -226,7 +226,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     @property({ type: Object }) instance: any = null;
     @property({ type: Boolean }) resizable = false;
     @property({ type: Boolean }) draggable = true;
-    @property({ type: String }) dragHandleSelector: string | null = null;
+    @property({ type: String }) drag_handle_selector: string | null = null;
     @property({ type: Boolean }) connectable = true;
     @property({ type: Number }) minWidth = 10;
     @property({ type: Number }) maxWidth = Number.MAX_VALUE;
@@ -249,8 +249,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
 
     connectedCallback() {
       super.connectedCallback();
-      // Only attach mousedown to entire node if no dragHandleSelector is set
-      if (this.draggable && !this.dragHandleSelector) {
+      // Only attach mousedown to entire node if no drag_handle_selector is set
+      if (this.draggable && !this.drag_handle_selector) {
         this.addEventListener('mousedown', this.handleMouseDown);
       }
       this.addEventListener('click', this.handleClick);
@@ -315,7 +315,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       
       if (!this.draggable) return;
       
-      // If dragHandleSelector is set, the listener is only on the drag handle element
+      // If drag_handle_selector is set, the listener is only on the drag handle element
       // So if we reach here, it means the click was on the drag handle or node (if no selector set)
       e.preventDefault();
       e.stopPropagation();
@@ -631,7 +631,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       this.appendResizerToDOM();
       
       // Set data attribute for CSS cursor styling
-      if (this.dragHandleSelector) {
+      if (this.drag_handle_selector) {
         this.setAttribute('data-drag-handle-selector', '');
       }
       
@@ -660,16 +660,16 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         this.appendResizerToDOM();
       }
       
-      // Re-attach drag handle listener if dragHandleSelector or draggable changed
-      if (changedProperties.has('dragHandleSelector') || changedProperties.has('draggable')) {
+      // Re-attach drag handle listener if drag_handle_selector or draggable changed
+      if (changedProperties.has('drag_handle_selector') || changedProperties.has('draggable')) {
         Promise.resolve().then(() => {
           this.attachDragHandleListener();
         });
       }
       
-      // Update cursor style based on dragHandleSelector
-      if (changedProperties.has('dragHandleSelector')) {
-        if (this.dragHandleSelector) {
+      // Update cursor style based on drag_handle_selector
+      if (changedProperties.has('drag_handle_selector')) {
+        if (this.drag_handle_selector) {
           this.setAttribute('data-drag-handle-selector', '');
         } else {
           this.removeAttribute('data-drag-handle-selector');
@@ -715,14 +715,14 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     }
 
     /**
-     * Attach mousedown listener to the drag handle element if dragHandleSelector is set
+     * Attach mousedown listener to the drag handle element if drag_handle_selector is set
      */
     private attachDragHandleListener() {
       // Remove existing listener first
       this.removeDragHandleListener();
       
-      // Only attach if draggable and dragHandleSelector is set
-      if (!this.draggable || !this.dragHandleSelector) {
+      // Only attach if draggable and drag_handle_selector is set
+      if (!this.draggable || !this.drag_handle_selector) {
         return;
       }
       
@@ -734,7 +734,7 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       }
       
       // Find the drag handle element in shadow root
-      const dragHandleElement = shadowRoot.querySelector(this.dragHandleSelector) as HTMLElement;
+      const dragHandleElement = shadowRoot.querySelector(this.drag_handle_selector) as HTMLElement;
       
       if (dragHandleElement) {
         this.dragHandleElement = dragHandleElement;

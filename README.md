@@ -534,7 +534,7 @@ interface NodeMixinInterface {
   dragging: boolean;
   resizable: boolean;
   draggable: boolean;
-  dragHandleSelector: string | null;  // CSS selector for drag handle element
+  drag_handle_selector: string | null;  // CSS selector for drag handle element
   connectable: boolean;
   
   // Resize constraints
@@ -560,7 +560,7 @@ interface NodeMixinInterface {
 
 #### Restricted Drag Handle
 
-By default, the entire node can be used to drag it around the canvas. However, you can restrict dragging to a specific element using the `dragHandleSelector` property. This is useful when you want users to interact with buttons, inputs, or other interactive elements in the node body without triggering dragging.
+By default, the entire node can be used to drag it around the canvas. However, you can restrict dragging to a specific element using the `drag_handle_selector` property. This is useful when you want users to interact with buttons, inputs, or other interactive elements in the node body without triggering dragging.
 
 **Usage:**
 
@@ -571,7 +571,7 @@ export class MyNode extends NodeMixin(LitElement) {
     super();
     this.draggable = true;
     // Only allow dragging from the header element
-    this.dragHandleSelector = '.node-header';
+    this.drag_handle_selector = '.node-header';
   }
 
   render() {
@@ -597,7 +597,7 @@ flowCanvas.instance.setNodes([
     id: 'node-1',
     type: 'my-node',
     position: { x: 100, y: 100 },
-    dragHandleSelector: '.node-header',  // Only header can drag
+    drag_handle_selector: '.node-header',  // Only header can drag
     data: {
       title: 'Draggable Node'
     }
@@ -605,7 +605,7 @@ flowCanvas.instance.setNodes([
 ]);
 ```
 
-When `dragHandleSelector` is set:
+When `drag_handle_selector` is set:
 - Only clicks within the specified element (or its children) will initiate dragging
 - Clicks elsewhere in the node body will not trigger dragging
 - Interactive elements like buttons, inputs, and links will work normally
