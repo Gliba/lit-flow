@@ -10,8 +10,13 @@ export declare class FlowInstance {
     private panZoomInstance;
     private options;
     private pendingNodes;
+    private panZoomUpdateOptions;
     constructor(options?: FlowOptions);
     mount(container: HTMLElement): void;
+    /**
+     * Enable or disable panning on drag
+     */
+    setPanOnDrag(enabled: boolean): void;
     destroy(): void;
     getState(): FlowState;
     get nodes(): Node[];

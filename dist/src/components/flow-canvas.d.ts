@@ -13,6 +13,7 @@ export declare class FlowCanvas extends LitElement {
     viewport: Viewport;
     nodeTypes: Record<string, string>;
     private connection;
+    private isHoveringNode;
     private getNodeGeom;
     /**
      * Get handle position in canvas coordinates
@@ -46,6 +47,9 @@ export declare class FlowCanvas extends LitElement {
     private onHandleStart;
     private onMouseMove;
     private onMouseUp;
+    private onNodeMouseEnter;
+    private onNodeMouseLeave;
+    private isElementNode;
     private onNodeSelect;
     private onEdgeSelect;
     private renderPreviewEdge;

@@ -47,6 +47,7 @@ let ERDTableNode = class ERDTableNode extends FlowNode {
       .table-body {
         padding: 0;
         overflow: auto;
+        /* Prevent panning when scrolling inside the table body */
       }
 
       .field-row {
@@ -176,7 +177,7 @@ let ERDTableNode = class ERDTableNode extends FlowNode {
         <span>${tableName}</span>
       </div>
       
-      <div class="table-body">
+      <div class="table-body nowheel">
         ${fields.map(field => html `
           <div class="field-row" data-field="${field.name}">
             <div class="field-key">

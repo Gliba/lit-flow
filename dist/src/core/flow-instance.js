@@ -17,6 +17,8 @@ export class FlowInstance {
         this.panZoomInstance = null;
         // Track nodes that are pending rendering
         this.pendingNodes = [];
+        // Store current pan/zoom update options for reuse
+        this.panZoomUpdateOptions = null;
         this.options = {
             minZoom: 0.5,
             maxZoom: 2,
@@ -56,7 +58,7 @@ export class FlowInstance {
             }
         });
         // Enable panning/zooming interactions
-        this.panZoomInstance.update({
+        this.panZoomUpdateOptions = {
             noWheelClassName: 'nowheel',
             noPanClassName: 'nopan',
             onPaneContextMenu: undefined,
@@ -73,8 +75,21 @@ export class FlowInstance {
             lib: 'lit-flow',
             onTransformChange: (_t) => { },
             connectionInProgress: false,
-        });
+        };
+        this.panZoomInstance.update(this.panZoomUpdateOptions);
         this.notifySubscribers();
+    }
+    /**
+     * Enable or disable panning on drag
+     */
+    setPanOnDrag(enabled) {
+        if (this.panZoomInstance && this.panZoomUpdateOptions) {
+            this.panZoomUpdateOptions = {
+                ...this.panZoomUpdateOptions,
+                panOnDrag: enabled
+            };
+            this.panZoomInstance.update(this.panZoomUpdateOptions);
+        }
     }
     destroy() {
         this.panZoomInstance?.destroy();

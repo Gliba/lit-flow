@@ -22,6 +22,14 @@ export declare class FlowNode extends LitElement {
     private lastMeasured;
     firstUpdated(): void;
     disconnectedCallback(): void;
+    /**
+     * Find the nearest scrollable parent element
+     */
+    private findScrollableElement;
+    /**
+     * Handle wheel events to prevent panning when scrolling inside scrollable content
+     */
+    private handleWheel;
     private handleClick;
     private handleResize;
     private handleResizeEnd;

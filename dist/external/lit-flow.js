@@ -17,6 +17,7 @@ class FlowInstance {
     this.subscribers = /* @__PURE__ */ new Set();
     this.panZoomInstance = null;
     this.pendingNodes = [];
+    this.panZoomUpdateOptions = null;
     this.options = {
       minZoom: 0.5,
       maxZoom: 2,
@@ -51,7 +52,7 @@ class FlowInstance {
       onPanZoomEnd: (_event, _viewport) => {
       }
     });
-    this.panZoomInstance.update({
+    this.panZoomUpdateOptions = {
       noWheelClassName: "nowheel",
       noPanClassName: "nopan",
       onPaneContextMenu: void 0,
@@ -69,8 +70,21 @@ class FlowInstance {
       onTransformChange: (_t) => {
       },
       connectionInProgress: false
-    });
+    };
+    this.panZoomInstance.update(this.panZoomUpdateOptions);
     this.notifySubscribers();
+  }
+  /**
+   * Enable or disable panning on drag
+   */
+  setPanOnDrag(enabled) {
+    if (this.panZoomInstance && this.panZoomUpdateOptions) {
+      this.panZoomUpdateOptions = {
+        ...this.panZoomUpdateOptions,
+        panOnDrag: enabled
+      };
+      this.panZoomInstance.update(this.panZoomUpdateOptions);
+    }
   }
   destroy() {
     this.panZoomInstance?.destroy();
@@ -332,6 +346,7 @@ let FlowCanvas = class extends LitElement {
       "erd-table": "erd-table-node"
     };
     this.connection = null;
+    this.isHoveringNode = false;
     this.onHandleStart = (e) => {
       const { nodeId, type, handleId } = e.detail;
       this.connection = { from: { nodeId, handleId } };
@@ -383,6 +398,45 @@ let FlowCanvas = class extends LitElement {
       }
       this.connection = null;
       this.requestUpdate();
+    };
+    this.onNodeMouseEnter = (e) => {
+      const target = e.target;
+      const nodeTypes = ["flow-node", ...Object.values(this.nodeTypes)];
+      let nodeElement = null;
+      for (const nodeType of nodeTypes) {
+        const element = target.closest(nodeType);
+        if (element && element.id) {
+          if (this.nodes.some((node) => node.id === element.id)) {
+            nodeElement = element;
+            break;
+          }
+        }
+      }
+      if (nodeElement && !this.isHoveringNode) {
+        this.isHoveringNode = true;
+        this.instance.setPanOnDrag(false);
+      }
+    };
+    this.onNodeMouseLeave = (e) => {
+      const target = e.target;
+      const nodeTypes = ["flow-node", ...Object.values(this.nodeTypes)];
+      let nodeElement = null;
+      for (const nodeType of nodeTypes) {
+        const element = target.closest(nodeType);
+        if (element && element.id && this.nodes.some((node) => node.id === element.id)) {
+          nodeElement = element;
+          break;
+        }
+      }
+      if (nodeElement && this.isHoveringNode) {
+        setTimeout(() => {
+          const pointElement = document.elementFromPoint(e.clientX, e.clientY);
+          if (!pointElement || !(pointElement instanceof HTMLElement) || !this.isElementNode(pointElement)) {
+            this.isHoveringNode = false;
+            this.instance.setPanOnDrag(true);
+          }
+        }, 10);
+      }
     };
     this.onNodeSelect = (e) => {
       const { nodeId, selected, node } = e.detail;
@@ -648,6 +702,8 @@ let FlowCanvas = class extends LitElement {
       window.addEventListener("mouseup", this.onMouseUp);
       container.addEventListener("node-select", this.onNodeSelect);
       document.addEventListener("edge-select", this.onEdgeSelect);
+      container.addEventListener("mouseenter", this.onNodeMouseEnter, true);
+      container.addEventListener("mouseleave", this.onNodeMouseLeave, true);
     }
   }
   disconnectedCallback() {
@@ -659,6 +715,8 @@ let FlowCanvas = class extends LitElement {
     window.removeEventListener("mouseup", this.onMouseUp);
     container?.removeEventListener("node-select", this.onNodeSelect);
     document.removeEventListener("edge-select", this.onEdgeSelect);
+    container?.removeEventListener("mouseenter", this.onNodeMouseEnter, true);
+    container?.removeEventListener("mouseleave", this.onNodeMouseLeave, true);
   }
   /**
    * Renders a node with dynamic tag name based on node type
@@ -762,6 +820,17 @@ let FlowCanvas = class extends LitElement {
     const vy = this.viewport.y;
     const z = this.viewport.zoom || 1;
     return { x: (x - rect.left - vx) / z, y: (y - rect.top - vy) / z };
+  }
+  isElementNode(element) {
+    if (!element) return false;
+    const nodeTypes = ["flow-node", ...Object.values(this.nodeTypes)];
+    for (const nodeType of nodeTypes) {
+      const nodeElement = element.closest(nodeType);
+      if (nodeElement && nodeElement.id) {
+        return this.nodes.some((node) => node.id === nodeElement.id);
+      }
+    }
+    return false;
   }
   renderPreviewEdge() {
     if (!this.connection || !this.connection.preview) return null;
@@ -1220,6 +1289,23 @@ let FlowNode = class extends LitElement {
     this.dragStart = { x: 0, y: 0 };
     this.nodeStart = { x: 0, y: 0 };
     this.lastMeasured = null;
+    this.handleWheel = (e) => {
+      const path = e.composedPath();
+      let scrollableEl = null;
+      for (const element of path) {
+        if (element instanceof Element) {
+          scrollableEl = this.findScrollableElement(element);
+          if (scrollableEl) break;
+        }
+      }
+      if (scrollableEl) {
+        const canScrollVertically = e.deltaY < 0 && scrollableEl.scrollTop > 0 || e.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
+        const canScrollHorizontally = e.deltaX < 0 && scrollableEl.scrollLeft > 0 || e.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
+        if (canScrollVertically || canScrollHorizontally) {
+          e.stopPropagation();
+        }
+      }
+    };
     this.handleClick = (e) => {
       e.stopPropagation();
       if (!this.isDragging && this.instance) {
@@ -1320,6 +1406,7 @@ let FlowNode = class extends LitElement {
       this.addEventListener("mousedown", this.handleMouseDown);
     }
     this.addEventListener("click", this.handleClick);
+    this.addEventListener("wheel", this.handleWheel, { passive: false });
     if (this.resizable) {
       this.addEventListener("resize", this.handleResize);
       this.addEventListener("resize-end", this.handleResizeEnd);
@@ -1330,11 +1417,33 @@ let FlowNode = class extends LitElement {
     super.disconnectedCallback();
     this.removeEventListener("mousedown", this.handleMouseDown);
     this.removeEventListener("click", this.handleClick);
+    this.removeEventListener("wheel", this.handleWheel);
     if (this.resizable) {
       this.removeEventListener("resize", this.handleResize);
       this.removeEventListener("resize-end", this.handleResizeEnd);
     }
     this.cleanup();
+  }
+  /**
+   * Find the nearest scrollable parent element
+   */
+  findScrollableElement(element) {
+    if (!element || !(element instanceof HTMLElement)) return null;
+    if (element.classList.contains("nowheel")) {
+      return element;
+    }
+    const style = window.getComputedStyle(element);
+    const overflow = style.overflow + style.overflowX + style.overflowY;
+    if (overflow.includes("auto") || overflow.includes("scroll")) {
+      if (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) {
+        return element;
+      }
+    }
+    const parent = element.parentElement;
+    if (parent && (parent === this || parent.closest("flow-node") === this || this.shadowRoot?.contains(parent))) {
+      return this.findScrollableElement(parent);
+    }
+    return null;
   }
   cleanup() {
     document.removeEventListener("mousemove", this.handleMouseMove);
@@ -2165,7 +2274,7 @@ let ERDTableNode = class extends FlowNode {
         <span>${tableName}</span>
       </div>
       
-      <div class="table-body">
+      <div class="table-body nowheel">
         ${fields.map((field) => html$1`
           <div class="field-row" data-field="${field.name}">
             <div class="field-key">
@@ -2238,6 +2347,7 @@ ERDTableNode.styles = [
       .table-body {
         padding: 0;
         overflow: auto;
+        /* Prevent panning when scrolling inside the table body */
       }
 
       .field-row {
@@ -3113,6 +3223,23 @@ const NodeMixin = (superClass) => {
           }));
         }
       };
+      this.handleWheel = (e) => {
+        const path = e.composedPath();
+        let scrollableEl = null;
+        for (const element of path) {
+          if (element instanceof Element) {
+            scrollableEl = this.findScrollableElement(element);
+            if (scrollableEl) break;
+          }
+        }
+        if (scrollableEl) {
+          const canScrollVertically = e.deltaY < 0 && scrollableEl.scrollTop > 0 || e.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
+          const canScrollHorizontally = e.deltaX < 0 && scrollableEl.scrollLeft > 0 || e.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
+          if (canScrollVertically || canScrollHorizontally) {
+            e.stopPropagation();
+          }
+        }
+      };
       this.handleMouseDown = (e) => {
         if (e.button !== 0) return;
         const target = e.target;
@@ -3471,15 +3598,38 @@ const NodeMixin = (superClass) => {
         this.addEventListener("mousedown", this.handleMouseDown);
       }
       this.addEventListener("click", this.handleClick);
+      this.addEventListener("wheel", this.handleWheel, { passive: false });
       document.addEventListener("click", this.handleGlobalClick);
     }
     disconnectedCallback() {
       super.disconnectedCallback();
       this.removeEventListener("mousedown", this.handleMouseDown);
       this.removeEventListener("click", this.handleClick);
+      this.removeEventListener("wheel", this.handleWheel);
       document.removeEventListener("click", this.handleGlobalClick);
       this.removeDragHandleListener();
       this.cleanup();
+    }
+    /**
+     * Find the nearest scrollable parent element
+     */
+    findScrollableElement(element) {
+      if (!element || !(element instanceof HTMLElement)) return null;
+      if (element.classList.contains("nowheel")) {
+        return element;
+      }
+      const style = window.getComputedStyle(element);
+      const overflow = style.overflow + style.overflowX + style.overflowY;
+      if (overflow.includes("auto") || overflow.includes("scroll")) {
+        if (element.scrollHeight > element.clientHeight || element.scrollWidth > element.clientWidth) {
+          return element;
+        }
+      }
+      const parent = element.parentElement;
+      if (parent && (parent === this || this.shadowRoot?.contains(parent))) {
+        return this.findScrollableElement(parent);
+      }
+      return null;
     }
     cleanup() {
       document.removeEventListener("mousemove", this.handleMouseMove);

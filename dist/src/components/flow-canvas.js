@@ -352,6 +352,7 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             'erd-table': 'erd-table-node'
         };
         this.connection = null;
+        this.isHoveringNode = false;
         this.onHandleStart = (e) => {
             const { nodeId, type, handleId } = e.detail;
             // Always start a connection FROM this handle, regardless of its type
@@ -414,6 +415,53 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             this.connection = null;
             this.requestUpdate();
         };
+        this.onNodeMouseEnter = (e) => {
+            // Check if the event originated from within a node
+            const target = e.target;
+            // Find the node element by checking all registered node types
+            const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+            let nodeElement = null;
+            // Check if target is a node or is inside a node
+            for (const nodeType of nodeTypes) {
+                const element = target.closest(nodeType);
+                if (element && element.id) {
+                    // Verify it's actually one of our nodes
+                    if (this.nodes.some(node => node.id === element.id)) {
+                        nodeElement = element;
+                        break;
+                    }
+                }
+            }
+            if (nodeElement && !this.isHoveringNode) {
+                this.isHoveringNode = true;
+                // Disable panning when hovering over a node
+                this.instance.setPanOnDrag(false);
+            }
+        };
+        this.onNodeMouseLeave = (e) => {
+            // Check if we're leaving a node
+            const target = e.target;
+            const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+            let nodeElement = null;
+            for (const nodeType of nodeTypes) {
+                const element = target.closest(nodeType);
+                if (element && element.id && this.nodes.some(node => node.id === element.id)) {
+                    nodeElement = element;
+                    break;
+                }
+            }
+            if (nodeElement && this.isHoveringNode) {
+                // Small delay to check if we're moving to another node
+                setTimeout(() => {
+                    const pointElement = document.elementFromPoint(e.clientX, e.clientY);
+                    if (!pointElement || !(pointElement instanceof HTMLElement) || !this.isElementNode(pointElement)) {
+                        this.isHoveringNode = false;
+                        // Re-enable panning when not hovering over a node
+                        this.instance.setPanOnDrag(true);
+                    }
+                }, 10);
+            }
+        };
         this.onNodeSelect = (e) => {
             const { nodeId, selected, node } = e.detail;
             // Update the node selection state in the instance
@@ -464,6 +512,9 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             container.addEventListener('node-select', this.onNodeSelect);
             // Edge events come from light DOM, so listen on document
             document.addEventListener('edge-select', this.onEdgeSelect);
+            // Listen for node hover events to prevent canvas panning
+            container.addEventListener('mouseenter', this.onNodeMouseEnter, true);
+            container.addEventListener('mouseleave', this.onNodeMouseLeave, true);
         }
     }
     disconnectedCallback() {
@@ -475,6 +526,8 @@ let FlowCanvas = class FlowCanvas extends LitElement {
         window.removeEventListener('mouseup', this.onMouseUp);
         container?.removeEventListener('node-select', this.onNodeSelect);
         document.removeEventListener('edge-select', this.onEdgeSelect);
+        container?.removeEventListener('mouseenter', this.onNodeMouseEnter, true);
+        container?.removeEventListener('mouseleave', this.onNodeMouseLeave, true);
     }
     /**
      * Renders a node with dynamic tag name based on node type
@@ -594,6 +647,18 @@ let FlowCanvas = class FlowCanvas extends LitElement {
         const vy = this.viewport.y;
         const z = this.viewport.zoom || 1;
         return { x: (x - rect.left - vx) / z, y: (y - rect.top - vy) / z };
+    }
+    isElementNode(element) {
+        if (!element)
+            return false;
+        const nodeTypes = ['flow-node', ...Object.values(this.nodeTypes)];
+        for (const nodeType of nodeTypes) {
+            const nodeElement = element.closest(nodeType);
+            if (nodeElement && nodeElement.id) {
+                return this.nodes.some(node => node.id === nodeElement.id);
+            }
+        }
+        return false;
     }
     renderPreviewEdge() {
         if (!this.connection || !this.connection.preview)
