@@ -92,6 +92,19 @@ export class FlowInstance {
     this.panZoomInstance.update(this.panZoomUpdateOptions);
 
     this.notifySubscribers();
+    
+    // Dispatch custom 'ready' event after mount completes
+    // Use setTimeout to ensure it fires after the current execution context
+    setTimeout(() => {
+      if (this.container) {
+        const event = new CustomEvent('ready', {
+          bubbles: true,
+          cancelable: false,
+          detail: { instance: this }
+        });
+        this.container.dispatchEvent(event);
+      }
+    }, 0);
   }
 
   /**
