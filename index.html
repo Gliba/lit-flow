@@ -91,6 +91,136 @@
       // import './dist/lit-flow.js';
       import './src/index.ts';
       import './examples/mixin-test-node.ts';
+      import { html, LitElement, css } from 'lit';
+
+      // Custom widget component for edge label
+      class EdgeCounterWidget extends LitElement {
+        static styles = css`
+          :host {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+          }
+          .count {
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 20px;
+            text-align: center;
+          }
+          button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: background 0.2s;
+          }
+          button:hover {
+            background: rgba(255,255,255,0.3);
+          }
+        `;
+
+        static properties = {
+          count: { type: Number },
+          data: { type: Object }
+        };
+
+        constructor() {
+          super();
+          this.count = 0;
+          this.data = {};
+        }
+
+        willUpdate(changedProperties) {
+          if (changedProperties.has('data') && this.data) {
+            if (this.data.initialCount !== undefined) {
+              this.count = this.data.initialCount;
+            }
+          }
+        }
+
+        render() {
+          return html`
+            <span style="color: white; font-size: 12px; font-weight: 500;">Count: </span>
+            <span class="count">${this.count}</span>
+            <button @click=${() => this.count++}>+1</button>
+          `;
+        }
+      }
+      customElements.define('edge-counter-widget', EdgeCounterWidget);
+
+      // Custom status badge widget
+      class EdgeStatusBadge extends LitElement {
+        static styles = css`
+          :host {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+          }
+          :host([active]) {
+            background: #10b981;
+            border-color: #10b981;
+          }
+          .icon {
+            font-size: 14px;
+          }
+          .text {
+            font-size: 11px;
+            font-weight: 500;
+            color: #333;
+          }
+          :host([active]) .text {
+            color: white;
+          }
+        `;
+
+        static properties = {
+          active: { type: Boolean, reflect: true },
+          data: { type: Object }
+        };
+
+        constructor() {
+          super();
+          this.active = false;
+          this.data = {};
+        }
+
+        willUpdate(changedProperties) {
+          if (changedProperties.has('data') && this.data) {
+            if (this.data.initialActive !== undefined) {
+              this.active = this.data.initialActive;
+            }
+          }
+        }
+
+        render() {
+          return html`
+            <span class="icon">${this.active ? '✓' : '○'}</span>
+            <span class="text">${this.active ? 'Active' : 'Inactive'}</span>
+          `;
+        }
+
+        connectedCallback() {
+          super.connectedCallback();
+          this.addEventListener('click', () => {
+            this.active = !this.active;
+          });
+        }
+      }
+      customElements.define('edge-status-badge', EdgeStatusBadge);
 
       const flowCanvas = document.getElementById('flow');
       const flowControls = document.getElementById('controls');
@@ -327,7 +457,12 @@
             id: 'edge-1',
             source: 'node-1',
             target: 'resizable-node-1',
-            animated: true
+            animated: true,
+            data: {
+              // Custom widget label example - pass tag name as string
+              labelWidget: 'edge-counter-widget',
+              labelData: { initialCount: 0 }
+            }
           },
           {
             id: 'edge-2',
@@ -335,7 +470,12 @@
             target: 'resizable-shape-1',
             sourceHandle: 'shape-1-source-right',
             targetHandle: 'resizable-shape-1-target-left',
-            animated: true
+            animated: true,
+            data: {
+              // Custom widget label example - pass tag name as string with data
+              labelWidget: 'edge-status-badge',
+              labelData: { initialActive: false }
+            }
           },
           {
             id: 'edge-3',

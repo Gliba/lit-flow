@@ -120,6 +120,16 @@ The main container component for your flow diagram.
 - `updateNode(id, updates)` - Update a node
 - `fitView()` - Fit the view to show all nodes
 
+**Events:**
+- `ready` - Fired when the flow is instantiated and ready to use. Listen on the container element:
+```ts
+const container = document.querySelector('.flow-container');
+container?.addEventListener('ready', (e: CustomEvent) => {
+  console.log('Flow is ready!', e.detail.instance);
+  // Flow is fully initialized and ready to use
+});
+```
+
 #### `<flow-node>`
 
 Basic node component.
@@ -200,14 +210,16 @@ Notes:
 
 ### Edge Labels
 
-There are two ways to render labels:
+Edge labels can be rendered in multiple ways:
 
-- SVG text on the path: use the root `label` field on the edge
+#### 1. SVG Text on Path
+Use the root `label` field for simple text rendered directly on the edge path:
 ```ts
 { id: 'e1-2', source: '1', target: '2', label: 'On Path' }
 ```
 
-- HTML overlay labels (portal-like): use `edge.data`
+#### 2. HTML Overlay Labels
+Use `edge.data` for HTML content rendered as overlay labels:
 ```ts
 {
   id: 'e2-3', source: '2', target: '3',
@@ -219,7 +231,92 @@ There are two ways to render labels:
 }
 ```
 
-The overlay labels are absolutely positioned in screen space and update with pan/zoom. Style them via the `.edge-label` class.
+#### 3. Custom Widget Labels (Recommended)
+Use custom Lit components as edge labels for fully interactive widgets:
+
+**Step 1: Create a custom widget component**
+```typescript
+import { LitElement, html, css } from 'lit';
+
+class EdgeCounterWidget extends LitElement {
+  static styles = css`
+    :host {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    button {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      border-radius: 4px;
+      padding: 2px 6px;
+      cursor: pointer;
+    }
+  `;
+
+  static properties = {
+    count: { type: Number },
+    data: { type: Object }
+  };
+
+  constructor() {
+    super();
+    this.count = 0;
+    this.data = {};
+  }
+
+  willUpdate(changedProperties) {
+    if (changedProperties.has('data') && this.data) {
+      if (this.data.initialCount !== undefined) {
+        this.count = this.data.initialCount;
+      }
+    }
+  }
+
+  render() {
+    return html`
+      <span style="color: white;">Count: ${this.count}</span>
+      <button @click=${() => this.count++}>+1</button>
+    `;
+  }
+}
+customElements.define('edge-counter-widget', EdgeCounterWidget);
+```
+
+**Step 2: Use the widget in an edge**
+```ts
+{
+  id: 'e1-2',
+  source: '1',
+  target: '2',
+  data: {
+    // Pass tag name as string
+    labelWidget: 'edge-counter-widget',
+    // Optional: pass data to the widget
+    labelData: { initialCount: 5 }
+  }
+}
+```
+
+**Widget Label Options:**
+- `labelWidget` (String): Tag name of the custom element to render at the center of the edge
+- `labelData` (Object): Optional data object passed to the widget via `.data` property
+- `startLabelWidget` (String): Tag name for widget at the start (source) side
+- `startLabelData` (Object): Optional data for start widget
+- `endLabelWidget` (String): Tag name for widget at the end (target) side
+- `endLabelData` (Object): Optional data for end widget
+
+**Priority Order:**
+1. Widget labels (`labelWidget`, `startLabelWidget`, `endLabelWidget`) - highest priority
+2. HTML labels (`labelHtml`, `startLabelHtml`, `endLabelHtml`)
+3. Text labels (`label`, `startLabel`, `endLabel`)
+
+The overlay labels are absolutely positioned in screen space and update with pan/zoom. Style them via the `.edge-label` class. Custom widgets are fully interactive and support all Lit component features.
 
 ## 🎭 Custom Nodes
 
