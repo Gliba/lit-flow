@@ -74,6 +74,16 @@ class FlowInstance {
     };
     this.panZoomInstance.update(this.panZoomUpdateOptions);
     this.notifySubscribers();
+    setTimeout(() => {
+      if (this.container) {
+        const event = new CustomEvent("ready", {
+          bubbles: true,
+          cancelable: false,
+          detail: { instance: this }
+        });
+        this.container.dispatchEvent(event);
+      }
+    }, 0);
   }
   /**
    * Enable or disable panning on drag
@@ -780,31 +790,49 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
           </div>
           <div class="flow-labels-overlay">
             ${this.edges.map((edge) => {
+      const labelWidget = edge.data && edge.data.labelWidget;
+      const labelData = edge.data && edge.data.labelData;
       const labelHtml = edge.data && edge.data.labelHtml;
       const labelText = edge.data && edge.data.label;
-      const hasCenter = !!labelHtml || !!labelText;
+      const hasCenter = !!labelWidget || !!labelHtml || !!labelText;
       if (!hasCenter) return null;
       const pos = this.computeLabelCanvasPosition(edge);
       if (!pos) return null;
       const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+      if (labelWidget) {
+        const tag = staticHtml_js.unsafeStatic(labelWidget);
+        return staticHtml_js.html`<div class="edge-label" style="${style}"><${tag} .data=${labelData}></${tag}></div>`;
+      }
       return labelHtml ? staticHtml_js.html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>` : staticHtml_js.html`<div class="edge-label" style="${style}">${labelText}</div>`;
     })}
             ${this.edges.map((edge) => {
+      const startWidget = edge.data && edge.data.startLabelWidget;
+      const startLabelData = edge.data && edge.data.startLabelData;
       const startHtml = edge.data && edge.data.startLabelHtml;
       const startText = edge.data && edge.data.startLabel;
-      if (!startHtml && !startText) return null;
+      if (!startWidget && !startHtml && !startText) return null;
       const pos = this.computeStartLabelCanvasPosition(edge);
       if (!pos) return null;
       const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+      if (startWidget) {
+        const tag = staticHtml_js.unsafeStatic(startWidget);
+        return staticHtml_js.html`<div class="edge-label" style="${style}"><${tag} .data=${startLabelData}></${tag}></div>`;
+      }
       return startHtml ? staticHtml_js.html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>` : staticHtml_js.html`<div class="edge-label" style="${style}">${startText}</div>`;
     })}
             ${this.edges.map((edge) => {
+      const endWidget = edge.data && edge.data.endLabelWidget;
+      const endLabelData = edge.data && edge.data.endLabelData;
       const endHtml = edge.data && edge.data.endLabelHtml;
       const endText = edge.data && edge.data.endLabel;
-      if (!endHtml && !endText) return null;
+      if (!endWidget && !endHtml && !endText) return null;
       const pos = this.computeEndLabelCanvasPosition(edge);
       if (!pos) return null;
       const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+      if (endWidget) {
+        const tag = staticHtml_js.unsafeStatic(endWidget);
+        return staticHtml_js.html`<div class="edge-label" style="${style}"><${tag} .data=${endLabelData}></${tag}></div>`;
+      }
       return endHtml ? staticHtml_js.html`<div class="edge-label" style="${style}" .innerHTML=${endHtml}></div>` : staticHtml_js.html`<div class="edge-label" style="${style}">${endText}</div>`;
     })}
           </div>
@@ -937,6 +965,13 @@ exports.FlowCanvas.styles = lit.css`
       pointer-events: all;
       white-space: nowrap;
       user-select: none;
+    }
+
+    .edge-label:has(*) {
+      /* Remove default styling when custom widget is used */
+      background: transparent;
+      border: none;
+      padding: 0;
     }
   `;
 __decorateClass$a([

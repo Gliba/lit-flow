@@ -87,6 +87,13 @@ let FlowCanvas = class FlowCanvas extends LitElement {
       white-space: nowrap;
       user-select: none;
     }
+
+    .edge-label:has(*) {
+      /* Remove default styling when custom widget is used */
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
   `; }
     getNodeGeom(nodeId) {
         const el = this.renderRoot.querySelector(`flow-node[id="${CSS.escape(nodeId)}"]`);
@@ -593,41 +600,60 @@ let FlowCanvas = class FlowCanvas extends LitElement {
           </div>
           <div class="flow-labels-overlay">
             ${this.edges.map(edge => {
+            const labelWidget = (edge.data && edge.data.labelWidget);
+            const labelData = (edge.data && edge.data.labelData);
             const labelHtml = (edge.data && edge.data.labelHtml);
             const labelText = (edge.data && edge.data.label);
-            const hasCenter = !!labelHtml || !!labelText;
+            const hasCenter = !!labelWidget || !!labelHtml || !!labelText;
             if (!hasCenter)
                 return null;
             const pos = this.computeLabelCanvasPosition(edge);
             if (!pos)
                 return null;
             const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            if (labelWidget) {
+                // Render the widget element using Lit template (similar to nodes)
+                const tag = unsafeStatic(labelWidget);
+                return html `<div class="edge-label" style="${style}"><${tag} .data=${labelData}></${tag}></div>`;
+            }
             return labelHtml
                 ? html `<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>`
                 : html `<div class="edge-label" style="${style}">${labelText}</div>`;
         })}
             ${this.edges.map(edge => {
+            const startWidget = (edge.data && edge.data.startLabelWidget);
+            const startLabelData = (edge.data && edge.data.startLabelData);
             const startHtml = (edge.data && edge.data.startLabelHtml);
             const startText = (edge.data && edge.data.startLabel);
-            if (!startHtml && !startText)
+            if (!startWidget && !startHtml && !startText)
                 return null;
             const pos = this.computeStartLabelCanvasPosition(edge);
             if (!pos)
                 return null;
             const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            if (startWidget) {
+                const tag = unsafeStatic(startWidget);
+                return html `<div class="edge-label" style="${style}"><${tag} .data=${startLabelData}></${tag}></div>`;
+            }
             return startHtml
                 ? html `<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>`
                 : html `<div class="edge-label" style="${style}">${startText}</div>`;
         })}
             ${this.edges.map(edge => {
+            const endWidget = (edge.data && edge.data.endLabelWidget);
+            const endLabelData = (edge.data && edge.data.endLabelData);
             const endHtml = (edge.data && edge.data.endLabelHtml);
             const endText = (edge.data && edge.data.endLabel);
-            if (!endHtml && !endText)
+            if (!endWidget && !endHtml && !endText)
                 return null;
             const pos = this.computeEndLabelCanvasPosition(edge);
             if (!pos)
                 return null;
             const style = `transform: translate(-50%, -50%) translate(${pos.x}px, ${pos.y}px);`;
+            if (endWidget) {
+                const tag = unsafeStatic(endWidget);
+                return html `<div class="edge-label" style="${style}"><${tag} .data=${endLabelData}></${tag}></div>`;
+            }
             return endHtml
                 ? html `<div class="edge-label" style="${style}" .innerHTML=${endHtml}></div>`
                 : html `<div class="edge-label" style="${style}">${endText}</div>`;
