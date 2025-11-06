@@ -418,6 +418,18 @@ export class FlowCanvas extends LitElement {
       // Listen for node hover events to prevent canvas panning
       container.addEventListener('mouseenter', this.onNodeMouseEnter, true);
       container.addEventListener('mouseleave', this.onNodeMouseLeave, true);
+      
+      // Dispatch flow-ready event directly on the flow-canvas element
+      // Use requestAnimationFrame to ensure mount is complete
+      requestAnimationFrame(() => {
+        const event = new CustomEvent('flow-ready', {
+          bubbles: true,
+          composed: true,
+          cancelable: false,
+          detail: { instance: this.instance }
+        });
+        this.dispatchEvent(event);
+      });
     }
   }
 

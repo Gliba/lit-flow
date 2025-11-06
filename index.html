@@ -237,6 +237,12 @@
 
       // Wait for components to be ready
       customElements.whenDefined('flow-canvas').then(() => {
+        // Listen for flow-ready event
+        flowCanvas.addEventListener('flow-ready', (e) => {
+          console.log('Flow ready event fired!', e.detail);
+          // Flow is fully initialized and ready to use
+        });
+        
         // Connect controls to flow instance
         flowControls.instance = flowCanvas.instance;
 
@@ -697,7 +703,6 @@
           document.getElementById('selection-info').textContent = 
             `Selected edge: ${e.detail.selected ? e.detail.edgeId : 'none'} | Total selected edges: ${e.detail.allSelectedEdges?.length || 0}`;
         });
-
       });
     </script>
   </body>

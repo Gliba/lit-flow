@@ -71,16 +71,6 @@
       };
       this.panZoomInstance.update(this.panZoomUpdateOptions);
       this.notifySubscribers();
-      setTimeout(() => {
-        if (this.container) {
-          const event = new CustomEvent("ready", {
-            bubbles: true,
-            cancelable: false,
-            detail: { instance: this }
-          });
-          this.container.dispatchEvent(event);
-        }
-      }, 0);
     }
     /**
      * Enable or disable panning on drag
@@ -712,6 +702,15 @@
         document.addEventListener("edge-select", this.onEdgeSelect);
         container.addEventListener("mouseenter", this.onNodeMouseEnter, true);
         container.addEventListener("mouseleave", this.onNodeMouseLeave, true);
+        requestAnimationFrame(() => {
+          const event = new CustomEvent("flow-ready", {
+            bubbles: true,
+            composed: true,
+            cancelable: false,
+            detail: { instance: this.instance }
+          });
+          this.dispatchEvent(event);
+        });
       }
     }
     disconnectedCallback() {

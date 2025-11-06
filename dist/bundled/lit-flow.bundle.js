@@ -2477,16 +2477,7 @@ class Fa {
       onTransformChange: (i) => {
       },
       connectionInProgress: !1
-    }, this.panZoomInstance.update(this.panZoomUpdateOptions), this.notifySubscribers(), setTimeout(() => {
-      if (this.container) {
-        const i = new CustomEvent("ready", {
-          bubbles: !0,
-          cancelable: !1,
-          detail: { instance: this }
-        });
-        this.container.dispatchEvent(i);
-      }
-    }, 0);
+    }, this.panZoomInstance.update(this.panZoomUpdateOptions), this.notifySubscribers();
   }
   /**
    * Enable or disable panning on drag
@@ -3572,7 +3563,15 @@ let Ct = class extends I {
     const t = this.renderRoot.querySelector(".flow-container");
     t && (this.instance.mount(t), this.unsubscribe = this.instance.subscribe((e) => {
       this.nodes = e.nodes, this.edges = e.edges, this.viewport = e.viewport, this.requestUpdate();
-    }), t.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp), t.addEventListener("node-select", this.onNodeSelect), document.addEventListener("edge-select", this.onEdgeSelect), t.addEventListener("mouseenter", this.onNodeMouseEnter, !0), t.addEventListener("mouseleave", this.onNodeMouseLeave, !0));
+    }), t.addEventListener("mousemove", this.onMouseMove), window.addEventListener("mouseup", this.onMouseUp), t.addEventListener("node-select", this.onNodeSelect), document.addEventListener("edge-select", this.onEdgeSelect), t.addEventListener("mouseenter", this.onNodeMouseEnter, !0), t.addEventListener("mouseleave", this.onNodeMouseLeave, !0), requestAnimationFrame(() => {
+      const e = new CustomEvent("flow-ready", {
+        bubbles: !0,
+        composed: !0,
+        cancelable: !1,
+        detail: { instance: this.instance }
+      });
+      this.dispatchEvent(e);
+    }));
   }
   disconnectedCallback() {
     super.disconnectedCallback(), this.unsubscribe?.(), this.instance.destroy();
