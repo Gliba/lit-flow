@@ -1,6 +1,6 @@
 {
   "name": "lit-flow",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Flow diagram library for Lit built on @xyflow/system",
   "type": "module",
   "main": "./dist/external/lit-flow.cjs",
