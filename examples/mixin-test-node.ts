@@ -271,7 +271,6 @@ export class MixinTestNode extends NodeMixin(LitElement) {
 
   private handleAction = (e: MouseEvent) => {
     e.stopPropagation();
-    console.log('Action clicked on mixin node:', this.id);
     
     // Dispatch custom event
     (this as any).dispatchEvent(new CustomEvent('node-action', {
@@ -289,6 +288,7 @@ export class MixinTestNode extends NodeMixin(LitElement) {
     return (e: MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
+
       
       (this as any).dispatchEvent(new CustomEvent('handle-start', {
         detail: { 

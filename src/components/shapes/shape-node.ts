@@ -190,7 +190,7 @@ export class ShapeNode extends LitElement {
     }
     
     if (changedProperties.has('resizable')) {
-      console.log('ShapeNode resizable changed:', this.resizable);
+      // Resizable property changed
     }
   }
 
@@ -429,7 +429,6 @@ export class ShapeNode extends LitElement {
   };
 
   private handleMouseUp = () => {
-    console.log('handleMouseUp');
     if (this.isDragging && this.instance) {
       this.instance.updateNode(this.id, { dragging: false });
     }
@@ -439,7 +438,6 @@ export class ShapeNode extends LitElement {
   };
 
   private handleHandleStart = (e: MouseEvent) => {
-    console.log('handleHandleStart', e);
     e.stopPropagation();
     this.isDragging = false;
     

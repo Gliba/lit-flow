@@ -111,6 +111,8 @@ The main container component for your flow diagram.
 **Properties:**
 - `nodes` (Array): Array of node objects
 - `edges` (Array): Array of edge objects
+- `onConnectStart` (Function): Handler called when a connection drag starts
+- `onConnectEnd` (Function): Handler called when a connection drag ends
 
 **Instance Methods:**
 - `setNodes(nodes)` - Set all nodes
@@ -128,6 +130,69 @@ container?.addEventListener('ready', (e: CustomEvent) => {
   console.log('Flow is ready!', e.detail.instance);
   // Flow is fully initialized and ready to use
 });
+```
+
+**Connection Handlers:**
+
+lit-flow provides `onConnectStart` and `onConnectEnd` handlers that allow you to react to connection interactions. This enables powerful features like creating new nodes when dropping a connection on the canvas.
+
+```ts
+import type { ConnectionStartParams, ConnectionEndParams } from 'lit-flow';
+
+// Handler called when user starts dragging from a handle
+flowCanvas.onConnectStart = (params: ConnectionStartParams) => {
+  console.log('Connection started from:', params.nodeId, params.handleId);
+};
+
+// Handler called when user releases the mouse after dragging
+flowCanvas.onConnectEnd = (params: ConnectionEndParams) => {
+  if (params.connectionStarted && params.position && !params.targetNodeId) {
+    // Dropped on canvas (not on a node) - create new node
+    const newNode = {
+      id: `node-${Date.now()}`,
+      type: 'default',
+      position: {
+        x: params.position.x - 75, // Center the node
+        y: params.position.y - 25
+      },
+      data: { label: 'New Node' },
+      width: 150,
+      height: 50
+    };
+    
+    flowCanvas.instance.addNode(newNode);
+    
+    // Connect the source node to the new node
+    if (params.sourceNodeId) {
+      flowCanvas.instance.addEdge({
+        id: `e-${params.sourceNodeId}-${newNode.id}`,
+        source: params.sourceNodeId,
+        target: newNode.id,
+        sourceHandle: params.sourceHandleId,
+        data: {}
+      });
+    }
+  }
+};
+```
+
+**Connection Handler Types:**
+
+```ts
+interface ConnectionStartParams {
+  nodeId: string;              // ID of the node where connection started
+  handleId?: string;           // ID of the specific handle (if any)
+  handleType?: 'source' | 'target';  // Type of handle
+}
+
+interface ConnectionEndParams {
+  connectionStarted: boolean;  // Whether a connection was actually started
+  sourceNodeId?: string;       // Source node ID (if connection completed)
+  sourceHandleId?: string;     // Source handle ID (if connection completed)
+  targetNodeId?: string;       // Target node ID (if connected to another node)
+  targetHandleId?: string;     // Target handle ID (if connected to another node)
+  position?: XYPosition;       // Canvas position where dropped (only if dropped on canvas)
+}
 ```
 
 #### `<flow-node>`
@@ -1404,6 +1469,87 @@ const node: Node = {
   data: { label: 'My Node' }
 };
 ```
+
+## 🎯 Add Node on Edge Drop
+
+You can create a new node when you drag a connection from a handle and drop it on the canvas using the `onConnectStart` and `onConnectEnd` handlers. This is similar to React Flow's ["Add Node on Edge Drop" example](https://reactflow.dev/examples/nodes/add-node-on-edge-drop).
+
+### Example
+
+```html
+<flow-canvas id="flow">
+  <flow-background variant="dots"></flow-background>
+  
+  <script type="module">
+    import 'lit-flow';
+    
+    const flowCanvas = document.getElementById('flow');
+    let nodeIdCounter = 1;
+    
+    customElements.whenDefined('flow-canvas').then(() => {
+      // Start with an initial node
+      flowCanvas.instance.setNodes([
+        {
+          id: 'initial-node',
+          type: 'default',
+          position: { x: 100, y: 200 },
+          data: { label: 'Drag from handle to create nodes' },
+          width: 200,
+          height: 50
+        }
+      ]);
+      
+      // Handle connection end - create node when dropped on canvas
+      flowCanvas.onConnectEnd = (params) => {
+        // Check if dropped on canvas (has position but no target node)
+        if (params.connectionStarted && params.position && !params.targetNodeId && params.sourceNodeId) {
+          const id = `node-${nodeIdCounter++}`;
+          const nodeWidth = 150;
+          const nodeHeight = 50;
+          
+          // Create new node at drop position (centered)
+          flowCanvas.instance.addNode({
+            id,
+            type: 'default',
+            position: {
+              x: params.position.x - nodeWidth / 2,
+              y: params.position.y - nodeHeight / 2
+            },
+            data: { 
+              label: `Node ${nodeIdCounter - 1}` 
+            },
+            width: nodeWidth,
+            height: nodeHeight
+          });
+          
+          // Automatically connect the source node to the new node
+          flowCanvas.instance.addEdge({
+            id: `e-${params.sourceNodeId}-${id}`,
+            source: params.sourceNodeId,
+            target: id,
+            sourceHandle: params.sourceHandleId,
+            data: {}
+          });
+        }
+      };
+    });
+  </script>
+</flow-canvas>
+```
+
+### How It Works
+
+1. **Start dragging** - When you drag from a node handle, `onConnectStart` is called
+2. **Drag preview** - A preview connection line follows your mouse
+3. **Drop on canvas** - When you release the mouse on empty canvas space, `onConnectEnd` is called with:
+   - `connectionStarted: true` - A connection was attempted
+   - `position` - The canvas coordinates where you dropped
+   - `sourceNodeId` - The node you dragged from
+   - No `targetNodeId` - Because you didn't drop on another node
+4. **Create node** - Your handler creates a new node at the drop position
+5. **Auto-connect** - The new node is automatically connected to the source node
+
+This creates a smooth workflow for building flow diagrams by dragging and dropping connections!
 
 ## 🎨 Theming
 

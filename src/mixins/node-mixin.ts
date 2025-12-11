@@ -497,8 +497,6 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         this.resizeHandle = classes.find(cls => cls !== 'resize-handle') || '';
       }
 
-      // console.log('Resize started with handle:', this.resizeHandle);
-
       document.addEventListener('mousemove', this.handleMouseMove);
       document.addEventListener('mouseup', this.handleMouseUp);
 
@@ -518,8 +516,6 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
 
       const deltaX = e.clientX - this.resizeStart.x;
       const deltaY = e.clientY - this.resizeStart.y;
-
-      // console.log('Resizing with handle:', this.resizeHandle, 'delta:', deltaX, deltaY);
 
       let newWidth = this.resizeStart.width;
       let newHeight = this.resizeStart.height;
@@ -598,7 +594,6 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     private handleResizeEnd = () => {
       if (!this.isResizing) return;
 
-      // console.log('Resize ending - final dimensions:', this.offsetWidth, this.offsetHeight);
       this.isResizing = false;
 
       // Dispatch resize end event

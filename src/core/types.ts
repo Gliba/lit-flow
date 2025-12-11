@@ -48,6 +48,23 @@ export type Edge<
 
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;
 
+export interface ConnectionStartParams {
+  nodeId: string;
+  handleId?: string;
+  handleType?: 'source' | 'target';
+}
+
+export interface ConnectionEndParams {
+  connectionStarted: boolean;
+  sourceNodeId?: string;
+  sourceHandleId?: string;
+  targetNodeId?: string;
+  targetHandleId?: string;
+  // Position in canvas coordinates where the connection was dropped
+  // Only present when dropped on canvas (not on a node)
+  position?: XYPosition;
+}
+
 export interface FlowOptions {
   nodes?: Node[];
   edges?: Edge[];

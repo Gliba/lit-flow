@@ -343,7 +343,7 @@ export class FlowNode extends LitElement {
     this.updateMeasuredSize();
     
     if (changedProperties.has('resizable')) {
-      console.log('FlowNode resizable changed:', this.resizable);
+      // Resizable property changed
     }
   }
 

@@ -420,7 +420,6 @@ export class FlowEdge extends LitElement {
   }
 
   private handleClick(e: MouseEvent) {
-    console.log('handleClick', e);
     e.stopPropagation();
     
     // Toggle selection

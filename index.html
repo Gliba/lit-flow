@@ -246,6 +246,48 @@
         // Connect controls to flow instance
         flowControls.instance = flowCanvas.instance;
 
+        // Add Node on Edge Drop example - similar to React Flow
+        // When dragging a connection from a handle and dropping on the canvas,
+        // create a new node at that position and connect it
+        let newNodeId = 1;
+        const getId = () => `drop-node-${newNodeId++}`;
+
+        flowCanvas.onConnectEnd = (params) => {
+          // When dropped on canvas (position provided but no target node), create a new node
+          if (params.connectionStarted && params.position && !params.targetNodeId && params.sourceNodeId) {
+            const id = getId();
+            const nodeWidth = 150;
+            const nodeHeight = 50;
+            
+            // Create new node at drop position (center it)
+            const newNode = {
+              id,
+              type: 'default',
+              position: {
+                x: params.position.x - nodeWidth / 2,
+                y: params.position.y - nodeHeight / 2
+              },
+              data: { 
+                label: `Node ${newNodeId - 1}` 
+              },
+              width: nodeWidth,
+              height: nodeHeight
+            };
+
+            flowCanvas.instance.addNode(newNode);
+
+            // Connect the source node to the newly created node
+            const newEdgeId = `e-${params.sourceNodeId}-${id}-${Date.now()}`;
+            flowCanvas.instance.addEdge({
+              id: newEdgeId,
+              source: params.sourceNodeId,
+              target: id,
+              sourceHandle: params.sourceHandleId,
+              data: {}
+            });
+          }
+        };
+
         // Set nodes first - they will be registered as pending
         flowCanvas.setNodes([
           // Mixin test nodes demonstrating maxInitialHeight

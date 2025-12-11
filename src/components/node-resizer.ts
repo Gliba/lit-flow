@@ -151,7 +151,6 @@ export class NodeResizer extends LitElement {
 
   private handleMouseDown = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
-    console.log('NodeResizer handleMouseDown:', target, target.classList);
     
     // Check if the target is a resize handle
     // If target is the host element, check if the event originated from a resize handle in shadow DOM
@@ -165,7 +164,6 @@ export class NodeResizer extends LitElement {
       );
     }
     
-    console.log('Is resize handle:', isResizeHandle);
     if (!isResizeHandle) return;
 
     e.preventDefault();
@@ -199,16 +197,10 @@ export class NodeResizer extends LitElement {
     if (resizeHandleEl) {
       const classes = Array.from(resizeHandleEl.classList);
       this.resizeHandle = classes.find(cls => cls !== 'resize-handle') || '';
-      console.log('Resize handle direction:', this.resizeHandle);
     }
 
     document.addEventListener('mousemove', this.handleMouseMove);
     document.addEventListener('mouseup', this.handleMouseUp);
-
-    console.log({
-        width: this.resizeStart.width,
-        height: this.resizeStart.height
-      })
 
     // Dispatch resize start event
     this.dispatchEvent(new CustomEvent('resize-start', {
@@ -227,8 +219,6 @@ export class NodeResizer extends LitElement {
     // Get the parent element (host of the shadow root)
     const parentElement = (this.getRootNode() as ShadowRoot).host as HTMLElement;
     if (!parentElement) return;
-    
-    console.log('NodeResizer handleMouseMove:', e);
 
     const deltaX = e.clientX - this.resizeStart.x;
     const deltaY = e.clientY - this.resizeStart.y;

@@ -39,6 +39,8 @@ export type {
   Transform,
   NodeChange,
   EdgeChange,
+  ConnectionStartParams,
+  ConnectionEndParams,
 } from './core/types';
 
 export type {
