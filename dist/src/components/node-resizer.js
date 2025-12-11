@@ -24,7 +24,6 @@ let NodeResizer = class NodeResizer extends LitElement {
         this.resizeHandle = '';
         this.handleMouseDown = (e) => {
             const target = e.target;
-            console.log('NodeResizer handleMouseDown:', target, target.classList);
             // Check if the target is a resize handle
             // If target is the host element, check if the event originated from a resize handle in shadow DOM
             let isResizeHandle = target.classList.contains('resize-handle');
@@ -33,7 +32,6 @@ let NodeResizer = class NodeResizer extends LitElement {
                 const path = e.composedPath();
                 isResizeHandle = path.some(el => el instanceof HTMLElement && el.classList.contains('resize-handle'));
             }
-            console.log('Is resize handle:', isResizeHandle);
             if (!isResizeHandle)
                 return;
             e.preventDefault();
@@ -61,14 +59,9 @@ let NodeResizer = class NodeResizer extends LitElement {
             if (resizeHandleEl) {
                 const classes = Array.from(resizeHandleEl.classList);
                 this.resizeHandle = classes.find(cls => cls !== 'resize-handle') || '';
-                console.log('Resize handle direction:', this.resizeHandle);
             }
             document.addEventListener('mousemove', this.handleMouseMove);
             document.addEventListener('mouseup', this.handleMouseUp);
-            console.log({
-                width: this.resizeStart.width,
-                height: this.resizeStart.height
-            });
             // Dispatch resize start event
             this.dispatchEvent(new CustomEvent('resize-start', {
                 detail: {
@@ -86,7 +79,6 @@ let NodeResizer = class NodeResizer extends LitElement {
             const parentElement = this.getRootNode().host;
             if (!parentElement)
                 return;
-            console.log('NodeResizer handleMouseMove:', e);
             const deltaX = e.clientX - this.resizeStart.x;
             const deltaY = e.clientY - this.resizeStart.y;
             let newWidth = this.resizeStart.width;

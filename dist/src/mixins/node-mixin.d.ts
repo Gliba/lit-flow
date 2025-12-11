@@ -81,6 +81,8 @@ export interface NodeMixinInterface {
     maxHeight: number;
     keepAspectRatio: boolean;
     maxInitialHeight: number;
+    width: number | undefined;
+    height: number | undefined;
     renderComponent(): any;
     getResizer(): any;
     adjustHeightToContent(): void;

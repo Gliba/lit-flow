@@ -16,7 +16,7 @@ export { ShapeNode } from './components/shapes/shape-node';
 export { ShapeRegistry } from './components/shapes/shape-registry';
 export { NodeResizer } from './components/node-resizer';
 export { BaseNode, BaseNodeHeader, BaseNodeHeaderTitle, BaseNodeContent, BaseNodeFooter, } from './components/ui/base-node';
-export type { Node, Edge, EdgeType, XYPosition, FlowOptions, FlowState, Viewport, Transform, NodeChange, EdgeChange, } from './core/types';
+export type { Node, Edge, EdgeType, XYPosition, FlowOptions, FlowState, Viewport, Transform, NodeChange, EdgeChange, ConnectionStartParams, ConnectionEndParams, } from './core/types';
 export type { ShapeType, ShapeConfig, ShapeDefinition, AdvancedShapeConfig, ShapeNodeData, } from './components/shapes/types';
 export type { BackgroundVariant } from './components/flow-background';
 export type { ERDField, ERDTableData } from './components/ui/erd-table-node';

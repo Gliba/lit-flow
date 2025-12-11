@@ -37,6 +37,19 @@ export type Edge<EdgeData extends Record<string, unknown> = Record<string, unkno
     type?: EdgeType;
 };
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;
+export interface ConnectionStartParams {
+    nodeId: string;
+    handleId?: string;
+    handleType?: 'source' | 'target';
+}
+export interface ConnectionEndParams {
+    connectionStarted: boolean;
+    sourceNodeId?: string;
+    sourceHandleId?: string;
+    targetNodeId?: string;
+    targetHandleId?: string;
+    position?: XYPosition;
+}
 export interface FlowOptions {
     nodes?: Node[];
     edges?: Edge[];

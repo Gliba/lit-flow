@@ -379,7 +379,6 @@ let FlowEdge = class FlowEdge extends LitElement {
     `;
     }
     handleClick(e) {
-        console.log('handleClick', e);
         e.stopPropagation();
         // Toggle selection
         const newSelected = !this.selected;

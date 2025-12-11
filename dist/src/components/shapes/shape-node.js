@@ -133,7 +133,6 @@ let ShapeNode = class ShapeNode extends LitElement {
             }
         };
         this.handleMouseUp = () => {
-            console.log('handleMouseUp');
             if (this.isDragging && this.instance) {
                 this.instance.updateNode(this.id, { dragging: false });
             }
@@ -141,7 +140,6 @@ let ShapeNode = class ShapeNode extends LitElement {
             this.cleanup();
         };
         this.handleHandleStart = (e) => {
-            console.log('handleHandleStart', e);
             e.stopPropagation();
             this.isDragging = false;
             const handle = e.target;
@@ -318,7 +316,7 @@ let ShapeNode = class ShapeNode extends LitElement {
             // This can be used for future features like animation
         }
         if (changedProperties.has('resizable')) {
-            console.log('ShapeNode resizable changed:', this.resizable);
+            // Resizable property changed
         }
     }
     /**

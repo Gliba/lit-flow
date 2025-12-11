@@ -134,7 +134,6 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             return null;
         // For shape nodes, calculate handle position based on shape size and handle type
         if (node.type === 'shape') {
-            console.log('getHandleCanvasPosition for shape node:', { nodeId, handleId, node });
             return this.getShapeHandlePosition(node, handleId);
         }
         // For regular nodes, use the existing method
@@ -162,7 +161,6 @@ let FlowCanvas = class FlowCanvas extends LitElement {
         // Handle IDs are like: "shape-1-source-right", "shape-1-target-left", etc.
         const parts = handleId.split('-');
         const handleType = parts[parts.length - 1]; // Get last part (right, left, top, bottom)
-        console.log('getShapeHandlePosition:', { handleId, parts, handleType, node: node.id, size });
         let offsetX = 0;
         let offsetY = 0;
         switch (handleType) {
@@ -191,13 +189,6 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             x: node.position.x + offsetX,
             y: node.position.y + offsetY
         };
-        console.log('getShapeHandlePosition result:', {
-            nodeId: node.id,
-            position: node.position,
-            offsetX,
-            offsetY,
-            result
-        });
         return result;
     }
     setNodes(nodes) {
@@ -365,6 +356,14 @@ let FlowCanvas = class FlowCanvas extends LitElement {
             // Always start a connection FROM this handle, regardless of its type
             // The handle type will be determined by the connection direction
             this.connection = { from: { nodeId, handleId } };
+            // Call onConnectStart handler if provided
+            if (this.onConnectStart) {
+                this.onConnectStart({
+                    nodeId,
+                    handleId,
+                    handleType: type
+                });
+            }
         };
         this.onMouseMove = (e) => {
             if (!this.connection)
@@ -395,20 +394,27 @@ let FlowCanvas = class FlowCanvas extends LitElement {
                 }
             }
             const targetId = targetEl?.getAttribute('id') || undefined;
+            // Prepare connection end parameters
+            const connectionStarted = !!this.connection?.from;
+            let sourceNodeId;
+            let sourceHandleId;
+            let targetNodeId;
+            let finalTargetHandleId;
+            let canvasPosition;
             // Handle connection completion - always from a source handle to a target handle
             if (this.connection.from && targetId && targetId !== this.connection.from.nodeId) {
                 const newEdgeId = `e-${this.connection.from.nodeId}-${targetId}-${Date.now()}`;
-                const sourceNodeId = this.connection.from.nodeId;
-                const sourceHandleId = this.connection.from.handleId;
+                sourceNodeId = this.connection.from.nodeId;
+                sourceHandleId = this.connection.from.handleId;
                 // If no target handle was found, determine the best target handle for shape nodes
-                let finalTargetHandleId = targetHandleId;
+                finalTargetHandleId = targetHandleId;
                 if (!finalTargetHandleId) {
                     const targetNode = this.nodes.find(n => n.id === targetId);
                     if (targetNode && targetNode.type === 'shape') {
                         finalTargetHandleId = this.determineBestTargetHandle(sourceNodeId, targetId);
-                        console.log('Auto-determined target handle:', { sourceNodeId, targetId, finalTargetHandleId });
                     }
                 }
+                targetNodeId = targetId;
                 // Use the instance method which handles retry logic automatically
                 this.instance.addEdge({
                     id: newEdgeId,
@@ -417,6 +423,26 @@ let FlowCanvas = class FlowCanvas extends LitElement {
                     sourceHandle: sourceHandleId,
                     targetHandle: finalTargetHandleId,
                     data: {}
+                });
+            }
+            else if (this.connection?.from) {
+                // Connection was started but not completed (dropped on canvas or cancelled)
+                sourceNodeId = this.connection.from.nodeId;
+                sourceHandleId = this.connection.from.handleId;
+                // If dropped on canvas (has preview position), get the canvas position
+                if (this.connection.preview) {
+                    canvasPosition = this.connection.preview;
+                }
+            }
+            // Call onConnectEnd handler if provided
+            if (this.onConnectEnd) {
+                this.onConnectEnd({
+                    connectionStarted,
+                    sourceNodeId,
+                    sourceHandleId,
+                    targetNodeId,
+                    targetHandleId: finalTargetHandleId,
+                    position: canvasPosition
                 });
             }
             this.connection = null;
@@ -567,6 +593,8 @@ let FlowCanvas = class FlowCanvas extends LitElement {
         .connectable=${node.connectable !== false}
         .resizable=${node.resizable || false}
         .drag_handle_selector=${node.drag_handle_selector || null}
+        .width=${node.width}
+        .height=${node.height}
         .instance=${this.instance}
         @handle-start=${this.onHandleStart}
       ></${tag}>
@@ -743,6 +771,12 @@ __decorate([
 __decorate([
     property({ type: Object })
 ], FlowCanvas.prototype, "viewport", void 0);
+__decorate([
+    property({ type: Object })
+], FlowCanvas.prototype, "onConnectStart", void 0);
+__decorate([
+    property({ type: Object })
+], FlowCanvas.prototype, "onConnectEnd", void 0);
 __decorate([
     property({ type: Object })
 ], FlowCanvas.prototype, "nodeTypes", void 0);

@@ -88,6 +88,8 @@ export const NodeMixin = (superClass) => {
             this.maxHeight = Number.MAX_VALUE;
             this.keepAspectRatio = false;
             this.maxInitialHeight = 0; // 0 = no initial height limit, otherwise sets max height if content exceeds
+            this.width = undefined;
+            this.height = undefined;
             this.isDragging = false;
             this.dragStart = { x: 0, y: 0 };
             this.nodeStart = { x: 0, y: 0 };
@@ -259,7 +261,6 @@ export const NodeMixin = (superClass) => {
                     const classes = Array.from(target.classList);
                     this.resizeHandle = classes.find(cls => cls !== 'resize-handle') || '';
                 }
-                // console.log('Resize started with handle:', this.resizeHandle);
                 document.addEventListener('mousemove', this.handleMouseMove);
                 document.addEventListener('mouseup', this.handleMouseUp);
                 // Dispatch resize start event
@@ -277,7 +278,6 @@ export const NodeMixin = (superClass) => {
                     return;
                 const deltaX = e.clientX - this.resizeStart.x;
                 const deltaY = e.clientY - this.resizeStart.y;
-                // console.log('Resizing with handle:', this.resizeHandle, 'delta:', deltaX, deltaY);
                 let newWidth = this.resizeStart.width;
                 let newHeight = this.resizeStart.height;
                 // Calculate new dimensions based on handle direction
@@ -349,7 +349,6 @@ export const NodeMixin = (superClass) => {
             this.handleResizeEnd = () => {
                 if (!this.isResizing)
                     return;
-                // console.log('Resize ending - final dimensions:', this.offsetWidth, this.offsetHeight);
                 this.isResizing = false;
                 // Dispatch resize end event
                 this.dispatchEvent(new CustomEvent('resize-end', {
@@ -626,6 +625,13 @@ export const NodeMixin = (superClass) => {
             if (this.drag_handle_selector) {
                 this.setAttribute('data-drag-handle-selector', '');
             }
+            // Apply initial width and height if provided
+            if (typeof this.width === 'number' && this.width > 0) {
+                this.style.width = `${this.width}px`;
+            }
+            if (typeof this.height === 'number' && this.height > 0) {
+                this.style.height = `${this.height}px`;
+            }
             // Wait for DOM to be fully rendered before attaching drag handle listener
             Promise.resolve().then(() => {
                 this.attachDragHandleListener();
@@ -636,6 +642,23 @@ export const NodeMixin = (superClass) => {
             super.updated(changedProperties);
             // Apply transform for positioning
             this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+            // Apply width and height if provided
+            if (changedProperties.has('width')) {
+                if (typeof this.width === 'number' && this.width > 0) {
+                    this.style.width = `${this.width}px`;
+                }
+                else {
+                    this.style.width = '';
+                }
+            }
+            if (changedProperties.has('height')) {
+                if (typeof this.height === 'number' && this.height > 0) {
+                    this.style.height = `${this.height}px`;
+                }
+                else {
+                    this.style.height = '';
+                }
+            }
             // Adjust height to content if maxInitialHeight changed (only if not resizing)
             if (changedProperties.has('maxInitialHeight') && !this.isResizing) {
                 // Wait a tick for content to render, then adjust height
@@ -888,6 +911,12 @@ export const NodeMixin = (superClass) => {
     __decorate([
         property({ type: Number })
     ], NodeMixinClass.prototype, "maxInitialHeight", void 0);
+    __decorate([
+        property({ type: Number })
+    ], NodeMixinClass.prototype, "width", void 0);
+    __decorate([
+        property({ type: Number })
+    ], NodeMixinClass.prototype, "height", void 0);
     return NodeMixinClass;
 };
 //# sourceMappingURL=node-mixin.js.map

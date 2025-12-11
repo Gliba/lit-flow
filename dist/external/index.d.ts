@@ -63,6 +63,21 @@ export declare class BaseNodeHeaderTitle extends LitElement {
     render(): TemplateResult<1>;
 }
 
+export declare interface ConnectionEndParams {
+    connectionStarted: boolean;
+    sourceNodeId?: string;
+    sourceHandleId?: string;
+    targetNodeId?: string;
+    targetHandleId?: string;
+    position?: XYPosition;
+}
+
+export declare interface ConnectionStartParams {
+    nodeId: string;
+    handleId?: string;
+    handleType?: 'source' | 'target';
+}
+
 declare type Constructor<T = {}> = new (...args: any[]) => T;
 
 export declare function createStore(initialState?: Partial<FlowState>): {
@@ -136,6 +151,8 @@ export declare class FlowCanvas extends LitElement {
     nodes: Node_2[];
     edges: Edge[];
     viewport: Viewport;
+    onConnectStart?: (params: ConnectionStartParams) => void;
+    onConnectEnd?: (params: ConnectionEndParams) => void;
     nodeTypes: Record<string, string>;
     private connection;
     private isHoveringNode;
@@ -502,6 +519,8 @@ export declare interface NodeMixinInterface {
     maxHeight: number;
     keepAspectRatio: boolean;
     maxInitialHeight: number;
+    width: number | undefined;
+    height: number | undefined;
     renderComponent(): any;
     getResizer(): any;
     adjustHeightToContent(): void;

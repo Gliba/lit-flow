@@ -4,13 +4,15 @@
  */
 import { LitElement } from 'lit';
 import { FlowInstance } from '../core/flow-instance';
-import type { Node, Edge, Viewport } from '../core/types';
+import type { Node, Edge, Viewport, ConnectionStartParams, ConnectionEndParams } from '../core/types';
 export declare class FlowCanvas extends LitElement {
     protected createRenderRoot(): HTMLElement | DocumentFragment;
     static styles: import("lit").CSSResult;
     nodes: Node[];
     edges: Edge[];
     viewport: Viewport;
+    onConnectStart?: (params: ConnectionStartParams) => void;
+    onConnectEnd?: (params: ConnectionEndParams) => void;
     nodeTypes: Record<string, string>;
     private connection;
     private isHoveringNode;

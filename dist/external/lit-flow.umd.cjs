@@ -348,6 +348,13 @@
       this.onHandleStart = (e) => {
         const { nodeId, type, handleId } = e.detail;
         this.connection = { from: { nodeId, handleId } };
+        if (this.onConnectStart) {
+          this.onConnectStart({
+            nodeId,
+            handleId,
+            handleType: type
+          });
+        }
       };
       this.onMouseMove = (e) => {
         if (!this.connection) return;
@@ -373,18 +380,24 @@
           }
         }
         const targetId = targetEl?.getAttribute("id") || void 0;
+        const connectionStarted = !!this.connection?.from;
+        let sourceNodeId;
+        let sourceHandleId;
+        let targetNodeId;
+        let finalTargetHandleId;
+        let canvasPosition;
         if (this.connection.from && targetId && targetId !== this.connection.from.nodeId) {
           const newEdgeId = `e-${this.connection.from.nodeId}-${targetId}-${Date.now()}`;
-          const sourceNodeId = this.connection.from.nodeId;
-          const sourceHandleId = this.connection.from.handleId;
-          let finalTargetHandleId = targetHandleId;
+          sourceNodeId = this.connection.from.nodeId;
+          sourceHandleId = this.connection.from.handleId;
+          finalTargetHandleId = targetHandleId;
           if (!finalTargetHandleId) {
             const targetNode = this.nodes.find((n) => n.id === targetId);
             if (targetNode && targetNode.type === "shape") {
               finalTargetHandleId = this.determineBestTargetHandle(sourceNodeId, targetId);
-              console.log("Auto-determined target handle:", { sourceNodeId, targetId, finalTargetHandleId });
             }
           }
+          targetNodeId = targetId;
           this.instance.addEdge({
             id: newEdgeId,
             source: sourceNodeId,
@@ -392,6 +405,22 @@
             sourceHandle: sourceHandleId,
             targetHandle: finalTargetHandleId,
             data: {}
+          });
+        } else if (this.connection?.from) {
+          sourceNodeId = this.connection.from.nodeId;
+          sourceHandleId = this.connection.from.handleId;
+          if (this.connection.preview) {
+            canvasPosition = this.connection.preview;
+          }
+        }
+        if (this.onConnectEnd) {
+          this.onConnectEnd({
+            connectionStarted,
+            sourceNodeId,
+            sourceHandleId,
+            targetNodeId,
+            targetHandleId: finalTargetHandleId,
+            position: canvasPosition
           });
         }
         this.connection = null;
@@ -501,7 +530,6 @@
       const node = this.nodes.find((n) => n.id === nodeId);
       if (!node) return null;
       if (node.type === "shape") {
-        console.log("getHandleCanvasPosition for shape node:", { nodeId, handleId, node });
         return this.getShapeHandlePosition(node, handleId);
       }
       const nodeRect = nodeEl.getBoundingClientRect();
@@ -525,7 +553,6 @@
       const height = size.height;
       const parts = handleId.split("-");
       const handleType = parts[parts.length - 1];
-      console.log("getShapeHandlePosition:", { handleId, parts, handleType, node: node.id, size });
       let offsetX = 0;
       let offsetY = 0;
       switch (handleType) {
@@ -553,13 +580,6 @@
         x: node.position.x + offsetX,
         y: node.position.y + offsetY
       };
-      console.log("getShapeHandlePosition result:", {
-        nodeId: node.id,
-        position: node.position,
-        offsetX,
-        offsetY,
-        result
-      });
       return result;
     }
     setNodes(nodes) {
@@ -743,6 +763,8 @@
         .connectable=${node.connectable !== false}
         .resizable=${node.resizable || false}
         .drag_handle_selector=${node.drag_handle_selector || null}
+        .width=${node.width}
+        .height=${node.height}
         .instance=${this.instance}
         @handle-start=${this.onHandleStart}
       ></${tag}>
@@ -981,6 +1003,12 @@
   ], exports2.FlowCanvas.prototype, "viewport", 2);
   __decorateClass$a([
     decorators_js.property({ type: Object })
+  ], exports2.FlowCanvas.prototype, "onConnectStart", 2);
+  __decorateClass$a([
+    decorators_js.property({ type: Object })
+  ], exports2.FlowCanvas.prototype, "onConnectEnd", 2);
+  __decorateClass$a([
+    decorators_js.property({ type: Object })
   ], exports2.FlowCanvas.prototype, "nodeTypes", 2);
   exports2.FlowCanvas = __decorateClass$a([
     decorators_js.customElement("flow-canvas")
@@ -1009,7 +1037,6 @@
       this.resizeHandle = "";
       this.handleMouseDown = (e) => {
         const target = e.target;
-        console.log("NodeResizer handleMouseDown:", target, target.classList);
         let isResizeHandle = target.classList.contains("resize-handle");
         if (!isResizeHandle && target === this) {
           const path = e.composedPath();
@@ -1017,7 +1044,6 @@
             (el) => el instanceof HTMLElement && el.classList.contains("resize-handle")
           );
         }
-        console.log("Is resize handle:", isResizeHandle);
         if (!isResizeHandle) return;
         e.preventDefault();
         e.stopPropagation();
@@ -1042,14 +1068,9 @@
         if (resizeHandleEl) {
           const classes = Array.from(resizeHandleEl.classList);
           this.resizeHandle = classes.find((cls) => cls !== "resize-handle") || "";
-          console.log("Resize handle direction:", this.resizeHandle);
         }
         document.addEventListener("mousemove", this.handleMouseMove);
         document.addEventListener("mouseup", this.handleMouseUp);
-        console.log({
-          width: this.resizeStart.width,
-          height: this.resizeStart.height
-        });
         this.dispatchEvent(new CustomEvent("resize-start", {
           detail: {
             width: this.resizeStart.width,
@@ -1063,7 +1084,6 @@
         if (!this.isResizing) return;
         const parentElement = this.getRootNode().host;
         if (!parentElement) return;
-        console.log("NodeResizer handleMouseMove:", e);
         const deltaX = e.clientX - this.resizeStart.x;
         const deltaY = e.clientY - this.resizeStart.y;
         let newWidth = this.resizeStart.width;
@@ -1515,9 +1535,7 @@
       super.updated(changedProperties);
       this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
       this.updateMeasuredSize();
-      if (changedProperties.has("resizable")) {
-        console.log("FlowNode resizable changed:", this.resizable);
-      }
+      if (changedProperties.has("resizable")) ;
     }
     updateMeasuredSize() {
       if (!this.instance) return;
@@ -1913,7 +1931,6 @@
     `;
     }
     handleClick(e) {
-      console.log("handleClick", e);
       e.stopPropagation();
       const newSelected = !this.selected;
       this.selected = newSelected;
@@ -2707,7 +2724,6 @@
         }
       };
       this.handleMouseUp = () => {
-        console.log("handleMouseUp");
         if (this.isDragging && this.instance) {
           this.instance.updateNode(this.id, { dragging: false });
         }
@@ -2715,7 +2731,6 @@
         this.cleanup();
       };
       this.handleHandleStart = (e) => {
-        console.log("handleHandleStart", e);
         e.stopPropagation();
         this.isDragging = false;
         const handle = e.target;
@@ -2738,9 +2753,7 @@
     updated(changedProperties) {
       super.updated(changedProperties);
       if (changedProperties.has("position") && !this.isDragging) ;
-      if (changedProperties.has("resizable")) {
-        console.log("ShapeNode resizable changed:", this.resizable);
-      }
+      if (changedProperties.has("resizable")) ;
     }
     /**
      * Get the shape definition from the registry
@@ -3224,6 +3237,8 @@
         this.maxHeight = Number.MAX_VALUE;
         this.keepAspectRatio = false;
         this.maxInitialHeight = 0;
+        this.width = void 0;
+        this.height = void 0;
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
         this.nodeStart = { x: 0, y: 0 };
@@ -3703,6 +3718,12 @@
         if (this.drag_handle_selector) {
           this.setAttribute("data-drag-handle-selector", "");
         }
+        if (typeof this.width === "number" && this.width > 0) {
+          this.style.width = `${this.width}px`;
+        }
+        if (typeof this.height === "number" && this.height > 0) {
+          this.style.height = `${this.height}px`;
+        }
         Promise.resolve().then(() => {
           this.attachDragHandleListener();
           this.adjustHeightToContent();
@@ -3711,6 +3732,20 @@
       updated(changedProperties) {
         super.updated(changedProperties);
         this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+        if (changedProperties.has("width")) {
+          if (typeof this.width === "number" && this.width > 0) {
+            this.style.width = `${this.width}px`;
+          } else {
+            this.style.width = "";
+          }
+        }
+        if (changedProperties.has("height")) {
+          if (typeof this.height === "number" && this.height > 0) {
+            this.style.height = `${this.height}px`;
+          } else {
+            this.style.height = "";
+          }
+        }
         if (changedProperties.has("maxInitialHeight") && !this.isResizing) {
           Promise.resolve().then(() => {
             this.adjustHeightToContent();
@@ -3925,6 +3960,12 @@
     __decorateClass([
       decorators_js.property({ type: Number })
     ], NodeMixinClass.prototype, "maxInitialHeight");
+    __decorateClass([
+      decorators_js.property({ type: Number })
+    ], NodeMixinClass.prototype, "width");
+    __decorateClass([
+      decorators_js.property({ type: Number })
+    ], NodeMixinClass.prototype, "height");
     return NodeMixinClass;
   };
   Object.defineProperty(exports2, "Position", {
