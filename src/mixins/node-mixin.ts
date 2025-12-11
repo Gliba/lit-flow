@@ -81,6 +81,8 @@ export interface NodeMixinInterface {
   maxHeight: number;
   keepAspectRatio: boolean;
   maxInitialHeight: number;
+  width: number | undefined;
+  height: number | undefined;
   renderComponent(): any;
   getResizer(): any;
   adjustHeightToContent(): void;
@@ -234,6 +236,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     @property({ type: Number }) maxHeight = Number.MAX_VALUE;
     @property({ type: Boolean }) keepAspectRatio = false;
     @property({ type: Number }) maxInitialHeight = 0; // 0 = no initial height limit, otherwise sets max height if content exceeds
+    @property({ type: Number }) width: number | undefined = undefined;
+    @property({ type: Number }) height: number | undefined = undefined;
 
     private isDragging = false;
     private dragStart = { x: 0, y: 0 };
@@ -696,6 +700,14 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         this.setAttribute('data-drag-handle-selector', '');
       }
       
+      // Apply initial width and height if provided
+      if (typeof this.width === 'number' && this.width > 0) {
+        this.style.width = `${this.width}px`;
+      }
+      if (typeof this.height === 'number' && this.height > 0) {
+        this.style.height = `${this.height}px`;
+      }
+      
       // Wait for DOM to be fully rendered before attaching drag handle listener
       Promise.resolve().then(() => {
         this.attachDragHandleListener();
@@ -707,6 +719,22 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       super.updated(changedProperties);
       // Apply transform for positioning
       this.style.transform = `translate(${this.position.x}px, ${this.position.y}px)`;
+      
+      // Apply width and height if provided
+      if (changedProperties.has('width')) {
+        if (typeof this.width === 'number' && this.width > 0) {
+          this.style.width = `${this.width}px`;
+        } else {
+          this.style.width = '';
+        }
+      }
+      if (changedProperties.has('height')) {
+        if (typeof this.height === 'number' && this.height > 0) {
+          this.style.height = `${this.height}px`;
+        } else {
+          this.style.height = '';
+        }
+      }
       
       // Adjust height to content if maxInitialHeight changed (only if not resizing)
       if (changedProperties.has('maxInitialHeight') && !this.isResizing) {
