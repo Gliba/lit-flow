@@ -35,6 +35,7 @@ export type Edge<EdgeData extends Record<string, unknown> = Record<string, unkno
     markerStart?: MarkerSpec | string;
     markerEnd?: MarkerSpec | string;
     type?: EdgeType;
+    offset?: number;
 };
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;
 export interface ConnectionStartParams {

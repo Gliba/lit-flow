@@ -19,6 +19,7 @@ export declare class FlowEdge extends LitElement {
     type: EdgeType;
     markerStart?: MarkerSpec | string;
     markerEnd?: MarkerSpec | string;
+    offset?: number;
     private markerHandleHalf;
     /**
      * Create marker ID from marker spec

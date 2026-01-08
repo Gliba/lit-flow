@@ -92,6 +92,7 @@ export declare type Edge<EdgeData extends Record<string, unknown> = Record<strin
     markerStart?: MarkerSpec | string;
     markerEnd?: MarkerSpec | string;
     type?: EdgeType;
+    offset?: number;
 };
 
 export declare type EdgeChange = {
@@ -221,6 +222,7 @@ export declare class FlowEdge extends LitElement {
     type: EdgeType;
     markerStart?: MarkerSpec | string;
     markerEnd?: MarkerSpec | string;
+    offset?: number;
     private markerHandleHalf;
     /**
      * Create marker ID from marker spec

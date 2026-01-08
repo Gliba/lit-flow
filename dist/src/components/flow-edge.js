@@ -146,12 +146,28 @@ let FlowEdge = class FlowEdge extends LitElement {
      * Get path based on edge type
      */
     getPathForType(source, target) {
-        const sourceX = source.x;
-        const sourceY = source.y;
-        const targetX = target.x;
-        const targetY = target.y;
+        let sourceX = source.x;
+        let sourceY = source.y;
+        let targetX = target.x;
+        let targetY = target.y;
         const sourcePosition = source.position;
         const targetPosition = target.position;
+        // Apply offset for smoothstep and step edges
+        // Offset shifts the edge to create separation between overlapping edges
+        if (this.offset !== undefined && (this.type === 'smoothstep' || this.type === 'step')) {
+            // Determine if edge is primarily horizontal or vertical
+            const isHorizontal = Math.abs(targetX - sourceX) > Math.abs(targetY - sourceY);
+            if (isHorizontal) {
+                // For horizontal edges, shift Y coordinates to create vertical separation
+                sourceY += this.offset;
+                targetY += this.offset;
+            }
+            else {
+                // For vertical edges, shift X coordinates to create horizontal separation
+                sourceX += this.offset;
+                targetX += this.offset;
+            }
+        }
         switch (this.type) {
             case 'straight':
                 return getStraightPath({
@@ -443,6 +459,9 @@ __decorate([
 __decorate([
     property({ type: Object })
 ], FlowEdge.prototype, "markerEnd", void 0);
+__decorate([
+    property({ type: Number })
+], FlowEdge.prototype, "offset", void 0);
 FlowEdge = __decorate([
     customElement('flow-edge')
 ], FlowEdge);

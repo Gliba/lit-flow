@@ -800,6 +800,7 @@ let FlowCanvas = class extends LitElement {
                   .type=${edge.type || "default"}
                   .markerStart=${edge.markerStart}
                   .markerEnd=${edge.markerEnd}
+                  .offset=${edge.offset}
                 ></flow-edge>
               `;
     })}
@@ -1734,12 +1735,22 @@ let FlowEdge = class extends LitElement {
    * Get path based on edge type
    */
   getPathForType(source, target) {
-    const sourceX = source.x;
-    const sourceY = source.y;
-    const targetX = target.x;
-    const targetY = target.y;
+    let sourceX = source.x;
+    let sourceY = source.y;
+    let targetX = target.x;
+    let targetY = target.y;
     const sourcePosition = source.position;
     const targetPosition = target.position;
+    if (this.offset !== void 0 && (this.type === "smoothstep" || this.type === "step")) {
+      const isHorizontal = Math.abs(targetX - sourceX) > Math.abs(targetY - sourceY);
+      if (isHorizontal) {
+        sourceY += this.offset;
+        targetY += this.offset;
+      } else {
+        sourceX += this.offset;
+        targetX += this.offset;
+      }
+    }
     switch (this.type) {
       case "straight":
         return getStraightPath({
@@ -2047,6 +2058,9 @@ __decorateClass$7([
 __decorateClass$7([
   property({ type: Object })
 ], FlowEdge.prototype, "markerEnd", 2);
+__decorateClass$7([
+  property({ type: Number })
+], FlowEdge.prototype, "offset", 2);
 FlowEdge = __decorateClass$7([
   customElement("flow-edge")
 ], FlowEdge);

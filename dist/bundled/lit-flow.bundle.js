@@ -218,10 +218,10 @@ function xs(t, e) {
   for (var r = s.length, o = new Array(r), a = new Array(r), h = new Array(r), l = 0; l < r; ++l) {
     var c = n[l], d = s[l], f = d.length, p = $s(t.call(c, c && c.__data__, l, n)), m = p.length, x = a[l] = new Array(m), E = o[l] = new Array(m), w = h[l] = new Array(f);
     i(c, d, x, E, w, p, e);
-    for (var H = 0, N = 0, T, Y; H < m; ++H)
+    for (var H = 0, N = 0, T, W; H < m; ++H)
       if (T = x[H]) {
-        for (H >= N && (N = H + 1); !(Y = E[N]) && ++N < m; ) ;
-        T._next = Y || null;
+        for (H >= N && (N = H + 1); !(W = E[N]) && ++N < m; ) ;
+        T._next = W || null;
       }
   }
   return o = new K(o, n), o._enter = a, o._exit = h, o;
@@ -855,35 +855,35 @@ function Si() {
 }
 function Et(t) {
   var e, i;
-  return t = (t + "").trim().toLowerCase(), (e = Rr.exec(t)) ? (i = e[1].length, e = parseInt(e[1], 16), i === 6 ? Ei(e) : i === 3 ? new F(e >> 8 & 15 | e >> 4 & 240, e >> 4 & 15 | e & 240, (e & 15) << 4 | e & 15, 1) : i === 8 ? ae(e >> 24 & 255, e >> 16 & 255, e >> 8 & 255, (e & 255) / 255) : i === 4 ? ae(e >> 12 & 15 | e >> 8 & 240, e >> 8 & 15 | e >> 4 & 240, e >> 4 & 15 | e & 240, ((e & 15) << 4 | e & 15) / 255) : null) : (e = Pr.exec(t)) ? new F(e[1], e[2], e[3], 1) : (e = Tr.exec(t)) ? new F(e[1] * 255 / 100, e[2] * 255 / 100, e[3] * 255 / 100, 1) : (e = Dr.exec(t)) ? ae(e[1], e[2], e[3], e[4]) : (e = Or.exec(t)) ? ae(e[1] * 255 / 100, e[2] * 255 / 100, e[3] * 255 / 100, e[4]) : (e = Ir.exec(t)) ? Mi(e[1], e[2] / 100, e[3] / 100, 1) : (e = Br.exec(t)) ? Mi(e[1], e[2] / 100, e[3] / 100, e[4]) : _i.hasOwnProperty(t) ? Ei(_i[t]) : t === "transparent" ? new F(NaN, NaN, NaN, 0) : null;
+  return t = (t + "").trim().toLowerCase(), (e = Rr.exec(t)) ? (i = e[1].length, e = parseInt(e[1], 16), i === 6 ? Ei(e) : i === 3 ? new Z(e >> 8 & 15 | e >> 4 & 240, e >> 4 & 15 | e & 240, (e & 15) << 4 | e & 15, 1) : i === 8 ? ae(e >> 24 & 255, e >> 16 & 255, e >> 8 & 255, (e & 255) / 255) : i === 4 ? ae(e >> 12 & 15 | e >> 8 & 240, e >> 8 & 15 | e >> 4 & 240, e >> 4 & 15 | e & 240, ((e & 15) << 4 | e & 15) / 255) : null) : (e = Pr.exec(t)) ? new Z(e[1], e[2], e[3], 1) : (e = Tr.exec(t)) ? new Z(e[1] * 255 / 100, e[2] * 255 / 100, e[3] * 255 / 100, 1) : (e = Dr.exec(t)) ? ae(e[1], e[2], e[3], e[4]) : (e = Or.exec(t)) ? ae(e[1] * 255 / 100, e[2] * 255 / 100, e[3] * 255 / 100, e[4]) : (e = Ir.exec(t)) ? Mi(e[1], e[2] / 100, e[3] / 100, 1) : (e = Br.exec(t)) ? Mi(e[1], e[2] / 100, e[3] / 100, e[4]) : _i.hasOwnProperty(t) ? Ei(_i[t]) : t === "transparent" ? new Z(NaN, NaN, NaN, 0) : null;
 }
 function Ei(t) {
-  return new F(t >> 16 & 255, t >> 8 & 255, t & 255, 1);
+  return new Z(t >> 16 & 255, t >> 8 & 255, t & 255, 1);
 }
 function ae(t, e, i, n) {
-  return n <= 0 && (t = e = i = NaN), new F(t, e, i, n);
+  return n <= 0 && (t = e = i = NaN), new Z(t, e, i, n);
 }
 function Yr(t) {
-  return t instanceof ne || (t = Et(t)), t ? (t = t.rgb(), new F(t.r, t.g, t.b, t.opacity)) : new F();
+  return t instanceof ne || (t = Et(t)), t ? (t = t.rgb(), new Z(t.r, t.g, t.b, t.opacity)) : new Z();
 }
 function qe(t, e, i, n) {
-  return arguments.length === 1 ? Yr(t) : new F(t, e, i, n ?? 1);
+  return arguments.length === 1 ? Yr(t) : new Z(t, e, i, n ?? 1);
 }
-function F(t, e, i, n) {
+function Z(t, e, i, n) {
   this.r = +t, this.g = +e, this.b = +i, this.opacity = +n;
 }
-hi(F, qe, vn(ne, {
+hi(Z, qe, vn(ne, {
   brighter(t) {
-    return t = t == null ? be : Math.pow(be, t), new F(this.r * t, this.g * t, this.b * t, this.opacity);
+    return t = t == null ? be : Math.pow(be, t), new Z(this.r * t, this.g * t, this.b * t, this.opacity);
   },
   darker(t) {
-    return t = t == null ? jt : Math.pow(jt, t), new F(this.r * t, this.g * t, this.b * t, this.opacity);
+    return t = t == null ? jt : Math.pow(jt, t), new Z(this.r * t, this.g * t, this.b * t, this.opacity);
   },
   rgb() {
     return this;
   },
   clamp() {
-    return new F(St(this.r), St(this.g), St(this.b), xe(this.opacity));
+    return new Z(St(this.r), St(this.g), St(this.b), xe(this.opacity));
   },
   displayable() {
     return -0.5 <= this.r && this.r < 255.5 && -0.5 <= this.g && this.g < 255.5 && -0.5 <= this.b && this.b < 255.5 && 0 <= this.opacity && this.opacity <= 1;
@@ -940,7 +940,7 @@ hi(st, Fr, vn(ne, {
   },
   rgb() {
     var t = this.h % 360 + (this.h < 0) * 360, e = isNaN(t) || isNaN(this.s) ? 0 : this.s, i = this.l, n = i + (i < 0.5 ? i : 1 - i) * e, s = 2 * i - n;
-    return new F(
+    return new Z(
       De(t >= 240 ? t - 240 : t + 120, s, n),
       De(t, s, n),
       De(t < 120 ? t + 240 : t - 120, s, n),
@@ -1141,13 +1141,13 @@ const pe = (function t(e, i, n) {
         ];
       };
     else {
-      var H = Math.sqrt(x), N = (f * f - l * l + n * x) / (2 * l * i * H), T = (f * f - l * l - n * x) / (2 * f * i * H), Y = Math.log(Math.sqrt(N * N + 1) - N), R = Math.log(Math.sqrt(T * T + 1) - T);
-      w = (R - Y) / e, E = function(I) {
-        var et = I * w, it = Ni(Y), vt = l / (i * H) * (it * ho(e * et + Y) - ao(Y));
+      var H = Math.sqrt(x), N = (f * f - l * l + n * x) / (2 * l * i * H), T = (f * f - l * l - n * x) / (2 * f * i * H), W = Math.log(Math.sqrt(N * N + 1) - N), R = Math.log(Math.sqrt(T * T + 1) - T);
+      w = (R - W) / e, E = function(I) {
+        var et = I * w, it = Ni(W), vt = l / (i * H) * (it * ho(e * et + W) - ao(W));
         return [
           a + vt * p,
           h + vt * m,
-          l * it / Ni(e * et + Y)
+          l * it / Ni(e * et + W)
         ];
       };
     }
@@ -1834,7 +1834,7 @@ function ka() {
   }
   w.transform = function(u, y, g, b) {
     var $ = u.selection ? u.selection() : u;
-    $.property("__zoom", Di), u !== $ ? Y(u, y, g, b) : $.interrupt().each(function() {
+    $.property("__zoom", Di), u !== $ ? W(u, y, g, b) : $.interrupt().each(function() {
       R(this, arguments).event(b).start().zoom(null, typeof y == "function" ? y.apply(this, arguments) : y).end();
     });
   }, w.scaleBy = function(u, y, g, b) {
@@ -1873,7 +1873,7 @@ function ka() {
   function T(u) {
     return [(+u[0][0] + +u[1][0]) / 2, (+u[0][1] + +u[1][1]) / 2];
   }
-  function Y(u, y, g, b) {
+  function W(u, y, g, b) {
     u.on("start.zoom", function() {
       R(this, arguments).event(b).start();
     }).on("interrupt.zoom end.zoom", function() {
@@ -1956,7 +1956,7 @@ function ka() {
   function vt(u, ...y) {
     if (t.apply(this, arguments)) {
       var g = this.__zoom, b = wt(u.changedTouches ? u.changedTouches[0] : u, this), $ = g.invert(b), z = g.k * (u.shiftKey ? 0.5 : 2), S = i(N(H(g, z), b, $), e.apply(this, y), o);
-      Xt(u), a > 0 ? bt(this).transition().duration(a).call(Y, S, b, u) : bt(this).call(w.transform, S, b, u);
+      Xt(u), a > 0 ? bt(this).transition().duration(a).call(W, S, b, u) : bt(this).call(w.transform, S, b, u);
     }
   }
   function It(u, ...y) {
@@ -2375,7 +2375,7 @@ function Wa({ domNode: t, minZoom: e, maxZoom: i, paneClickDistance: n, translat
     const u = Be(_);
     return await E(u, C), new Promise((y) => y(u));
   }
-  function Y(_) {
+  function W(_) {
     if (p) {
       const C = Be(_), u = p.property("__zoom");
       (u.k !== _.zoom || u.x !== _.x || u.y !== _.y) && f?.transform(p, C, null, { sync: !0 });
@@ -2415,7 +2415,7 @@ function Wa({ domNode: t, minZoom: e, maxZoom: i, paneClickDistance: n, translat
     scaleBy: et,
     setScaleExtent: it,
     setTranslateExtent: vt,
-    syncViewport: Y,
+    syncViewport: W,
     setClickDistance: It
   };
 }
@@ -3187,13 +3187,13 @@ const Yn = Symbol.for(""), uh = (t) => {
     (e = sn.get(d)) === void 0 && (o.raw = o, sn.set(d, e = o)), i = a;
   }
   return t(e, ...i);
-}, W = fh(M);
+}, F = fh(M);
 /**
  * @license
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const Z = (t) => (e, i) => {
+const q = (t) => (e, i) => {
   i !== void 0 ? i.addInitializer((() => {
     customElements.define(t, e);
   })) : customElements.define(t, e);
@@ -3587,7 +3587,7 @@ let gt = class extends B {
    */
   renderNode(t) {
     const e = t.type || "default", i = this.nodeTypes[e] || "flow-node", n = ue(i);
-    return W`
+    return F`
       <${n}
         .id=${t.id}
         .data=${t.data}
@@ -3606,7 +3606,7 @@ let gt = class extends B {
   }
   render() {
     const t = `translate(${this.viewport.x}px, ${this.viewport.y}px) scale(${this.viewport.zoom})`;
-    return W`
+    return F`
       <div class="flow-container">
         <slot name="background"></slot>
         <div 
@@ -3616,7 +3616,7 @@ let gt = class extends B {
           <div class="flow-edges-layer">
             ${this.edges.map((e) => {
       const i = this.nodes.find((s) => s.id === e.source), n = this.nodes.find((s) => s.id === e.target);
-      return !i || !n ? null : W`
+      return !i || !n ? null : F`
                 <flow-edge 
                   .id=${e.id}
                   .source=${e.source}
@@ -3630,6 +3630,7 @@ let gt = class extends B {
                   .type=${e.type || "default"}
                   .markerStart=${e.markerStart}
                   .markerEnd=${e.markerEnd}
+                  .offset=${e.offset}
                 ></flow-edge>
               `;
     })}
@@ -3647,9 +3648,9 @@ let gt = class extends B {
       const h = `transform: translate(-50%, -50%) translate(${a.x}px, ${a.y}px);`;
       if (i) {
         const l = ue(i);
-        return W`<div class="edge-label" style="${h}"><${l} .data=${n}></${l}></div>`;
+        return F`<div class="edge-label" style="${h}"><${l} .data=${n}></${l}></div>`;
       }
-      return s ? W`<div class="edge-label" style="${h}" .innerHTML=${s}></div>` : W`<div class="edge-label" style="${h}">${r}</div>`;
+      return s ? F`<div class="edge-label" style="${h}" .innerHTML=${s}></div>` : F`<div class="edge-label" style="${h}">${r}</div>`;
     })}
             ${this.edges.map((e) => {
       const i = e.data && e.data.startLabelWidget, n = e.data && e.data.startLabelData, s = e.data && e.data.startLabelHtml, r = e.data && e.data.startLabel;
@@ -3659,9 +3660,9 @@ let gt = class extends B {
       const a = `transform: translate(-50%, -50%) translate(${o.x}px, ${o.y}px);`;
       if (i) {
         const h = ue(i);
-        return W`<div class="edge-label" style="${a}"><${h} .data=${n}></${h}></div>`;
+        return F`<div class="edge-label" style="${a}"><${h} .data=${n}></${h}></div>`;
       }
-      return s ? W`<div class="edge-label" style="${a}" .innerHTML=${s}></div>` : W`<div class="edge-label" style="${a}">${r}</div>`;
+      return s ? F`<div class="edge-label" style="${a}" .innerHTML=${s}></div>` : F`<div class="edge-label" style="${a}">${r}</div>`;
     })}
             ${this.edges.map((e) => {
       const i = e.data && e.data.endLabelWidget, n = e.data && e.data.endLabelData, s = e.data && e.data.endLabelHtml, r = e.data && e.data.endLabel;
@@ -3671,9 +3672,9 @@ let gt = class extends B {
       const a = `transform: translate(-50%, -50%) translate(${o.x}px, ${o.y}px);`;
       if (i) {
         const h = ue(i);
-        return W`<div class="edge-label" style="${a}"><${h} .data=${n}></${h}></div>`;
+        return F`<div class="edge-label" style="${a}"><${h} .data=${n}></${h}></div>`;
       }
-      return s ? W`<div class="edge-label" style="${a}" .innerHTML=${s}></div>` : W`<div class="edge-label" style="${a}">${r}</div>`;
+      return s ? F`<div class="edge-label" style="${a}" .innerHTML=${s}></div>` : F`<div class="edge-label" style="${a}">${r}</div>`;
     })}
           </div>
         </div>
@@ -3700,7 +3701,7 @@ let gt = class extends B {
   renderPreviewEdge() {
     if (!this.connection || !this.connection.preview) return null;
     const t = this.connection.preview, e = this.connection.from ? this.nodes.find((n) => n.id === this.connection.from.nodeId) : null, i = this.connection.to ? this.nodes.find((n) => n.id === this.connection.to.nodeId) : null;
-    return e ? W`
+    return e ? F`
         <flow-edge
           .id=${"preview"}
           .source=${e.id}
@@ -3711,7 +3712,7 @@ let gt = class extends B {
           .animated=${!0}
           .label=${""}
         ></flow-edge>
-      ` : i ? W`
+      ` : i ? F`
         <flow-edge
           .id=${"preview"}
           .source=${"__preview__"}
@@ -3821,7 +3822,7 @@ At([
   v({ type: Object })
 ], gt.prototype, "nodeTypes", 2);
 gt = At([
-  Z("flow-canvas")
+  q("flow-canvas")
 ], gt);
 var zh = Object.defineProperty, Sh = Object.getOwnPropertyDescriptor, Nt = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Sh(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -4073,7 +4074,7 @@ Nt([
   v({ type: Boolean })
 ], mt.prototype, "keepAspectRatio", 2);
 mt = Nt([
-  Z("node-resizer")
+  q("node-resizer")
 ], mt);
 var Eh = Object.defineProperty, kh = Object.getOwnPropertyDescriptor, yt = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? kh(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -4306,9 +4307,9 @@ yt([
   v({ type: Boolean })
 ], J.prototype, "resizable", 2);
 J = yt([
-  Z("flow-node")
+  q("flow-node")
 ], J);
-var Ch = Object.defineProperty, Mh = Object.getOwnPropertyDescriptor, q = (t, e, i, n) => {
+var Ch = Object.defineProperty, Mh = Object.getOwnPropertyDescriptor, Y = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Mh(e, i) : e, r = t.length - 1, o; r >= 0; r--)
     (o = t[r]) && (s = (n ? o(e, i, s) : o(s)) || s);
   return n && s && Ch(e, i, s), s;
@@ -4367,8 +4368,9 @@ let U = class extends B {
    * Get path based on edge type
    */
   getPathForType(t, e) {
-    const i = t.x, n = t.y, s = e.x, r = e.y, o = t.position, a = e.position;
-    switch (this.type) {
+    let i = t.x, n = t.y, s = e.x, r = e.y;
+    const o = t.position, a = e.position;
+    switch (this.offset !== void 0 && (this.type === "smoothstep" || this.type === "step") && (Math.abs(s - i) > Math.abs(r - n) ? (n += this.offset, r += this.offset) : (i += this.offset, s += this.offset)), this.type) {
       case "straight":
         return xh({
           sourceX: i,
@@ -4610,47 +4612,50 @@ U.styles = X`
       }
     }
   `;
-q([
+Y([
   v({ type: String })
 ], U.prototype, "id", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "source", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "target", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "sourceHandle", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "targetHandle", 2);
-q([
+Y([
   v({ type: Object })
 ], U.prototype, "sourceNode", 2);
-q([
+Y([
   v({ type: Object })
 ], U.prototype, "targetNode", 2);
-q([
+Y([
   v({ type: Boolean })
 ], U.prototype, "animated", 2);
-q([
+Y([
   v({ type: Boolean })
 ], U.prototype, "selected", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "label", 2);
-q([
+Y([
   v({ type: String })
 ], U.prototype, "type", 2);
-q([
+Y([
   v({ type: Object })
 ], U.prototype, "markerStart", 2);
-q([
+Y([
   v({ type: Object })
 ], U.prototype, "markerEnd", 2);
-U = q([
-  Z("flow-edge")
+Y([
+  v({ type: Number })
+], U.prototype, "offset", 2);
+U = Y([
+  q("flow-edge")
 ], U);
 var Hh = Object.defineProperty, Ah = Object.getOwnPropertyDescriptor, re = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Ah(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -4713,7 +4718,7 @@ re([
   v({ type: Number })
 ], Ht.prototype, "size", 2);
 Ht = re([
-  Z("flow-background")
+  q("flow-background")
 ], Ht);
 var Nh = Object.defineProperty, Lh = Object.getOwnPropertyDescriptor, wi = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Lh(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -4768,7 +4773,7 @@ wi([
   v({ type: Number })
 ], ee.prototype, "height", 2);
 ee = wi([
-  Z("flow-minimap")
+  q("flow-minimap")
 ], ee);
 var Rh = Object.defineProperty, Ph = Object.getOwnPropertyDescriptor, Fn = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Ph(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -4838,7 +4843,7 @@ Fn([
   v({ type: Object })
 ], Ce.prototype, "instance", 2);
 Ce = Fn([
-  Z("flow-controls")
+  q("flow-controls")
 ], Ce);
 var Th = Object.getOwnPropertyDescriptor, Dh = Object.getPrototypeOf, Oh = Reflect.get, Ih = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Th(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -5034,7 +5039,7 @@ ut.styles = [
     `
 ];
 ut = Ih([
-  Z("erd-table-node")
+  q("erd-table-node")
 ], ut);
 const Bh = [
   {
@@ -5585,7 +5590,7 @@ ct([
   v({ type: Boolean })
 ], tt.prototype, "resizable", 2);
 tt = ct([
-  Z("shape-node")
+  q("shape-node")
 ], tt);
 var Fh = Object.getOwnPropertyDescriptor, oe = (t, e, i, n) => {
   for (var s = n > 1 ? void 0 : n ? Fh(e, i) : e, r = t.length - 1, o; r >= 0; r--)
@@ -5608,7 +5613,7 @@ ti.styles = X`
     }
   `;
 ti = oe([
-  Z("base-node")
+  q("base-node")
 ], ti);
 let ei = class extends B {
   render() {
@@ -5627,7 +5632,7 @@ ei.styles = X`
     }
   `;
 ei = oe([
-  Z("base-node-header")
+  q("base-node-header")
 ], ei);
 let ii = class extends B {
   render() {
@@ -5643,7 +5648,7 @@ ii.styles = X`
     }
   `;
 ii = oe([
-  Z("base-node-header-title")
+  q("base-node-header-title")
 ], ii);
 let ni = class extends B {
   render() {
@@ -5657,7 +5662,7 @@ ni.styles = X`
     }
   `;
 ni = oe([
-  Z("base-node-content")
+  q("base-node-content")
 ], ni);
 let si = class extends B {
   render() {
@@ -5675,7 +5680,7 @@ si.styles = X`
     }
   `;
 si = oe([
-  Z("base-node-footer")
+  q("base-node-footer")
 ], si);
 var Zh = Object.defineProperty, D = (t, e, i, n) => {
   for (var s = void 0, r = t.length - 1, o; r >= 0; r--)
