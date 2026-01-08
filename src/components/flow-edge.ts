@@ -157,12 +157,29 @@ export class FlowEdge extends LitElement {
    * Get path based on edge type
    */
   private getPathForType(source: any, target: any): [path: string, labelX: number, labelY: number, offsetX: number, offsetY: number] {
-    const sourceX = source.x;
-    const sourceY = source.y;
-    const targetX = target.x;
-    const targetY = target.y;
+    let sourceX = source.x;
+    let sourceY = source.y;
+    let targetX = target.x;
+    let targetY = target.y;
     const sourcePosition = source.position;
     const targetPosition = target.position;
+
+    // Apply offset for smoothstep and step edges
+    // Offset shifts the edge to create separation between overlapping edges
+    if (this.offset !== undefined && (this.type === 'smoothstep' || this.type === 'step')) {
+      // Determine if edge is primarily horizontal or vertical
+      const isHorizontal = Math.abs(targetX - sourceX) > Math.abs(targetY - sourceY);
+      
+      if (isHorizontal) {
+        // For horizontal edges, shift Y coordinates to create vertical separation
+        sourceY += this.offset;
+        targetY += this.offset;
+      } else {
+        // For vertical edges, shift X coordinates to create horizontal separation
+        sourceX += this.offset;
+        targetX += this.offset;
+      }
+    }
 
     switch (this.type) {
       case 'straight':
@@ -181,7 +198,6 @@ export class FlowEdge extends LitElement {
           targetX,
           targetY,
           targetPosition,
-          offset: this.offset,
         });
       
       case 'step':
@@ -193,7 +209,6 @@ export class FlowEdge extends LitElement {
           targetY,
           targetPosition,
           borderRadius: 0, // Step edges have no border radius
-          offset: this.offset,
         });
       
       case 'simplebezier':
