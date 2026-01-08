@@ -82,6 +82,7 @@ export class FlowEdge extends LitElement {
   @property({ type: String }) type: EdgeType = 'default';
   @property({ type: Object }) markerStart?: MarkerSpec | string;
   @property({ type: Object }) markerEnd?: MarkerSpec | string;
+  @property({ type: Number }) offset?: number;
 
   private markerHandleHalf = 5; // half of node handle diameter (10px)
 
@@ -180,6 +181,7 @@ export class FlowEdge extends LitElement {
           targetX,
           targetY,
           targetPosition,
+          offset: this.offset,
         });
       
       case 'step':
@@ -191,6 +193,7 @@ export class FlowEdge extends LitElement {
           targetY,
           targetPosition,
           borderRadius: 0, // Step edges have no border radius
+          offset: this.offset,
         });
       
       case 'simplebezier':

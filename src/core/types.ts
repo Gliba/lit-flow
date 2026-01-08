@@ -44,6 +44,7 @@ export type Edge<
   markerStart?: MarkerSpec | string;
   markerEnd?: MarkerSpec | string;
   type?: EdgeType;  // Edge type: 'default', 'straight', 'step', 'smoothstep', 'simplebezier'
+  offset?: number;  // Offset parameter for smoothstep and step edge types
 };
 
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;

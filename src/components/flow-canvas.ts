@@ -499,6 +499,7 @@ export class FlowCanvas extends LitElement {
                   .type=${edge.type || 'default'}
                   .markerStart=${edge.markerStart}
                   .markerEnd=${edge.markerEnd}
+                  .offset=${edge.offset}
                 ></flow-edge>
               `;
             })}
