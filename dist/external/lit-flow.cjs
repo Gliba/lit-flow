@@ -802,6 +802,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
                   .markerStart=${edge.markerStart}
                   .markerEnd=${edge.markerEnd}
                   .offset=${edge.offset}
+                  .pathStyle=${edge.pathStyle}
                 ></flow-edge>
               `;
     })}
@@ -1676,6 +1677,15 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
   }
   // half of node handle diameter (10px)
   /**
+   * Convert style object to CSS string
+   */
+  convertStyleObjToString(styleObj) {
+    return Object.entries(styleObj).filter(([_, value]) => value !== void 0 && value !== null).map(([key, value]) => {
+      const kebabKey = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      return `${kebabKey}:${value}`;
+    }).join(";");
+  }
+  /**
    * Create marker ID from marker spec
    */
   getMarkerId(spec) {
@@ -1909,6 +1919,7 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
     const markerStart = markerStartId ? `url(#${markerStartId})` : void 0;
     const markerEnd = markerEndId ? `url(#${markerEndId})` : void 0;
     const dashAttr = this.animated ? "5" : "";
+    const styleStr = this.pathStyle ? typeof this.pathStyle === "string" ? this.pathStyle : this.convertStyleObjToString(this.pathStyle) : "";
     return lit.html`
       <svg style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible">
         <defs>
@@ -1923,6 +1934,7 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
           <path 
             class="${pathClasses}"
             d="${path}"
+            style="${styleStr}"
             stroke-dasharray="${dashAttr}"
             marker-start="${markerStart ?? ""}"
             marker-end="${markerEnd ?? ""}"
@@ -2062,6 +2074,9 @@ __decorateClass$7([
 __decorateClass$7([
   decorators_js.property({ type: Number })
 ], exports.FlowEdge.prototype, "offset", 2);
+__decorateClass$7([
+  decorators_js.property({ type: Object })
+], exports.FlowEdge.prototype, "pathStyle", 2);
 exports.FlowEdge = __decorateClass$7([
   decorators_js.customElement("flow-edge")
 ], exports.FlowEdge);

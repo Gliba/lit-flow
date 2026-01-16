@@ -45,6 +45,7 @@ export type Edge<
   markerEnd?: MarkerSpec | string;
   type?: EdgeType;  // Edge type: 'default', 'straight', 'step', 'smoothstep', 'simplebezier'
   offset?: number;  // Offset parameter for smoothstep and step edge types
+  pathStyle?: Partial<CSSStyleDeclaration> | string;  // Custom CSS styles for the edge path
 };
 
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;

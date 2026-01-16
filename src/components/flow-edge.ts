@@ -83,8 +83,23 @@ export class FlowEdge extends LitElement {
   @property({ type: Object }) markerStart?: MarkerSpec | string;
   @property({ type: Object }) markerEnd?: MarkerSpec | string;
   @property({ type: Number }) offset?: number;
+  @property({ type: Object }) pathStyle?: Partial<CSSStyleDeclaration> | string;
 
   private markerHandleHalf = 5; // half of node handle diameter (10px)
+
+  /**
+   * Convert style object to CSS string
+   */
+  private convertStyleObjToString(styleObj: Partial<CSSStyleDeclaration>): string {
+    return Object.entries(styleObj)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => {
+        // Convert camelCase to kebab-case
+        const kebabKey = key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+        return `${kebabKey}:${value}`;
+      })
+      .join(';');
+  }
 
   /**
    * Create marker ID from marker spec
@@ -386,6 +401,11 @@ export class FlowEdge extends LitElement {
     const markerEnd = markerEndId ? `url(#${markerEndId})` : undefined;
 
     const dashAttr = this.animated ? '5' : '';
+    
+    // Convert pathStyle object to string if needed
+    const styleStr = this.pathStyle ? 
+      (typeof this.pathStyle === 'string' ? this.pathStyle : this.convertStyleObjToString(this.pathStyle)) : 
+      '';
 
     return html`
       <svg style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible">
@@ -415,6 +435,7 @@ export class FlowEdge extends LitElement {
           <path 
             class="${pathClasses}"
             d="${path}"
+            style="${styleStr}"
             stroke-dasharray="${dashAttr}"
             marker-start="${markerStart ?? ''}"
             marker-end="${markerEnd ?? ''}"

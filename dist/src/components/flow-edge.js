@@ -82,6 +82,19 @@ let FlowEdge = class FlowEdge extends LitElement {
     }
   `; }
     /**
+     * Convert style object to CSS string
+     */
+    convertStyleObjToString(styleObj) {
+        return Object.entries(styleObj)
+            .filter(([_, value]) => value !== undefined && value !== null)
+            .map(([key, value]) => {
+            // Convert camelCase to kebab-case
+            const kebabKey = key.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+            return `${kebabKey}:${value}`;
+        })
+            .join(';');
+    }
+    /**
      * Create marker ID from marker spec
      */
     getMarkerId(spec) {
@@ -347,6 +360,10 @@ let FlowEdge = class FlowEdge extends LitElement {
         const markerStart = markerStartId ? `url(#${markerStartId})` : undefined;
         const markerEnd = markerEndId ? `url(#${markerEndId})` : undefined;
         const dashAttr = this.animated ? '5' : '';
+        // Convert pathStyle object to string if needed
+        const styleStr = this.pathStyle ?
+            (typeof this.pathStyle === 'string' ? this.pathStyle : this.convertStyleObjToString(this.pathStyle)) :
+            '';
         return html `
       <svg style="position:absolute; top:0; left:0; width:100%; height:100%; overflow:visible">
         <defs>
@@ -373,6 +390,7 @@ let FlowEdge = class FlowEdge extends LitElement {
           <path 
             class="${pathClasses}"
             d="${path}"
+            style="${styleStr}"
             stroke-dasharray="${dashAttr}"
             marker-start="${markerStart ?? ''}"
             marker-end="${markerEnd ?? ''}"
@@ -462,6 +480,9 @@ __decorate([
 __decorate([
     property({ type: Number })
 ], FlowEdge.prototype, "offset", void 0);
+__decorate([
+    property({ type: Object })
+], FlowEdge.prototype, "pathStyle", void 0);
 FlowEdge = __decorate([
     customElement('flow-edge')
 ], FlowEdge);

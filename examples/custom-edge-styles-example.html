@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom Edge Styles Example - Lit Flow</title>
+  <script type="module" src="../dist/bundled/lit-flow.bundle.js"></script>
+  <link rel="stylesheet" href="../dist/bundled/lit-flow.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    flow-canvas {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .info-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 300px;
+      z-index: 100;
+    }
+
+    .info-panel h3 {
+      margin-top: 0;
+      color: #333;
+    }
+
+    .info-panel ul {
+      padding-left: 20px;
+      line-height: 1.6;
+    }
+
+    .color-box {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 5px;
+      border: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <div class="info-panel">
+    <h3>Custom Edge Styles</h3>
+    <ul>
+      <li><span class="color-box" style="background: #ff6b6b;"></span>Red edge (stroke-width: 4)</li>
+      <li><span class="color-box" style="background: #4ecdc4;"></span>Cyan edge (stroke-width: 6)</li>
+      <li><span class="color-box" style="background: #95e1d3;"></span>Dashed green edge</li>
+      <li><span class="color-box" style="background: #ffa502;"></span>Thick orange edge</li>
+      <li><span class="color-box" style="background: #a29bfe;"></span>Purple dotted edge</li>
+    </ul>
+  </div>
+
+  <flow-canvas id="canvas">
+    <flow-background slot="background" variant="dots"></flow-background>
+    <flow-controls slot="controls"></flow-controls>
+    <flow-minimap slot="minimap"></flow-minimap>
+  </flow-canvas>
+
+  <script type="module">
+    const canvas = document.getElementById('canvas');
+    
+    // Wait for component to be ready
+    customElements.whenDefined('flow-canvas').then(() => {
+      // Define nodes
+      const nodes = [
+        {
+          id: '1',
+          type: 'default',
+          position: { x: 100, y: 100 },
+          data: { label: 'Node 1' },
+          width: 150,
+          height: 80
+        },
+        {
+          id: '2',
+          type: 'default',
+          position: { x: 400, y: 50 },
+          data: { label: 'Node 2' },
+          width: 150,
+          height: 80
+        },
+        {
+          id: '3',
+          type: 'default',
+          position: { x: 400, y: 200 },
+          data: { label: 'Node 3' },
+          width: 150,
+          height: 80
+        },
+        {
+          id: '4',
+          type: 'default',
+          position: { x: 700, y: 125 },
+          data: { label: 'Node 4' },
+          width: 150,
+          height: 80
+        },
+        {
+          id: '5',
+          type: 'default',
+          position: { x: 100, y: 300 },
+          data: { label: 'Node 5' },
+          width: 150,
+          height: 80
+        }
+      ];
+      
+      // Define edges with custom styles
+      const edges = [
+        {
+          id: 'e1-2',
+          source: '1',
+          target: '2',
+          type: 'default',
+          label: 'Red edge',
+          // pathStyle as object
+          pathStyle: {
+            stroke: '#ff6b6b',
+            strokeWidth: '4'
+          },
+          markerEnd: {
+            type: 'ArrowClosed',
+            color: '#ff6b6b',
+            width: 10,
+            height: 10
+          }
+        },
+        {
+          id: 'e1-3',
+          source: '1',
+          target: '3',
+          type: 'smoothstep',
+          label: 'Cyan edge',
+          // pathStyle as object with camelCase properties
+          pathStyle: {
+            stroke: '#4ecdc4',
+            strokeWidth: '6',
+            opacity: '0.8'
+          },
+          markerEnd: {
+            type: 'ArrowClosed',
+            color: '#4ecdc4'
+          }
+        },
+        {
+          id: 'e2-4',
+          source: '2',
+          target: '4',
+          type: 'straight',
+          label: 'Dashed',
+          // pathStyle as string
+          pathStyle: 'stroke: #95e1d3; stroke-width: 3; stroke-dasharray: 10 5;',
+          markerEnd: {
+            type: 'Arrow',
+            color: '#95e1d3'
+          }
+        },
+        {
+          id: 'e3-4',
+          source: '3',
+          target: '4',
+          type: 'step',
+          label: 'Thick',
+          pathStyle: {
+            stroke: '#ffa502',
+            strokeWidth: '8',
+            strokeLinecap: 'round'
+          },
+          markerEnd: {
+            type: 'ArrowClosed',
+            color: '#ffa502',
+            width: 12,
+            height: 12
+          }
+        },
+        {
+          id: 'e5-1',
+          source: '5',
+          target: '1',
+          type: 'default',
+          label: 'Dotted',
+          pathStyle: {
+            stroke: '#a29bfe',
+            strokeWidth: '4',
+            strokeDasharray: '2 4',
+            opacity: '0.9'
+          },
+          markerEnd: {
+            type: 'Arrow',
+            color: '#a29bfe',
+            width: 10,
+            height: 10
+          }
+        }
+      ];
+      
+      // Set nodes and edges using the setNodes/setEdges methods
+      canvas.setNodes(nodes);
+      canvas.setEdges(edges);
+      
+      // Log edge clicks
+      canvas.addEventListener('edge-select', (e) => {
+        console.log('Edge selected:', e.detail);
+      });
+    });
+  </script>
+</body>
+</html>

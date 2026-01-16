@@ -630,6 +630,7 @@ let FlowCanvas = class FlowCanvas extends LitElement {
                   .markerStart=${edge.markerStart}
                   .markerEnd=${edge.markerEnd}
                   .offset=${edge.offset}
+                  .pathStyle=${edge.pathStyle}
                 ></flow-edge>
               `;
         })}

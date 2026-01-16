@@ -93,6 +93,7 @@ export declare type Edge<EdgeData extends Record<string, unknown> = Record<strin
     markerEnd?: MarkerSpec | string;
     type?: EdgeType;
     offset?: number;
+    pathStyle?: Partial<CSSStyleDeclaration> | string;
 };
 
 export declare type EdgeChange = {
@@ -223,7 +224,12 @@ export declare class FlowEdge extends LitElement {
     markerStart?: MarkerSpec | string;
     markerEnd?: MarkerSpec | string;
     offset?: number;
+    pathStyle?: Partial<CSSStyleDeclaration> | string;
     private markerHandleHalf;
+    /**
+     * Convert style object to CSS string
+     */
+    private convertStyleObjToString;
     /**
      * Create marker ID from marker spec
      */

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<!--
+  Overlapping Edges Example for lit-flow
+  
+  This example demonstrates how to use offset paths for smoothstep edges
+  to handle overlapping edges between the same nodes.
+  
+  To run this example:
+  1. Install dependencies: npm install
+  2. Start the dev server: npm run dev
+  3. Navigate to: http://localhost:5173/examples/overlapping-edges-example.html
+  
+  Features:
+  - Multiple edges between the same nodes
+  - Offset paths using the offset property for smoothstep edges
+  - Visual separation of overlapping edges
+  - Different edge types and animations
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>lit-flow - Overlapping Edges Example</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 1rem 2rem;
+        background: #1a1a1a;
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+      }
+
+      button {
+        padding: 0.5rem 1rem;
+        background: #1a73e8;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+      }
+
+      button:hover {
+        background: #1557b0;
+      }
+
+      button.active {
+        background: #10b981;
+      }
+
+      main {
+        flex: 1;
+        position: relative;
+      }
+
+      flow-canvas {
+        width: 100%;
+        height: 100%;
+      }
+
+      .info-panel {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        max-width: 350px;
+      }
+
+      .info-panel h2 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+        color: #333;
+      }
+
+      .info-panel p {
+        font-size: 0.875rem;
+        color: #666;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+      }
+
+      .info-panel ul {
+        font-size: 0.875rem;
+        color: #666;
+        line-height: 1.6;
+        padding-left: 1.25rem;
+      }
+
+      .info-panel li {
+        margin-bottom: 0.25rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🌊 lit-flow - Overlapping Edges Example</h1>
+      <div class="controls">
+        <button id="fit-view">Fit View</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="info-panel">
+        <h2>Overlapping Edges with Offset Paths</h2>
+        <p>
+          This example demonstrates how to use the <code>offset</code> property 
+          on smoothstep edges to create visual separation when multiple edges 
+          connect the same nodes.
+        </p>
+        <ul>
+          <li>Edges use <code>type: 'smoothstep'</code></li>
+          <li>Different <code>offset</code> values create separation</li>
+          <li>Positive and negative offsets shift edges vertically</li>
+          <li>Some edges are animated for visual effect</li>
+        </ul>
+      </div>
+      <flow-canvas id="flow">
+        <flow-background slot="background" variant="dots" gap="20" color="#e0e0e0"></flow-background>
+        <flow-controls id="controls"></flow-controls>
+        <flow-minimap></flow-minimap>
+      </flow-canvas>
+    </main>
+
+    <script type="module">
+      import '../src/index.ts';
+
+      // Nodes arranged in a way that creates overlapping edges
+      const nodes = [
+        {
+          id: 'node-1',
+          type: 'default',
+          position: { x: 100, y: 100 },
+          data: { label: 'Source Node' },
+          width: 150,
+          height: 40
+        },
+        {
+          id: 'node-2',
+          type: 'default',
+          position: { x: 400, y: 100 },
+          data: { label: 'Target Node A' },
+          width: 150,
+          height: 40
+        },
+        {
+          id: 'node-3',
+          type: 'default',
+          position: { x: 400, y: 250 },
+          data: { label: 'Target Node B' },
+          width: 150,
+          height: 40
+        },
+        {
+          id: 'node-4',
+          type: 'default',
+          position: { x: 700, y: 100 },
+          data: { label: 'Final Node' },
+          width: 150,
+          height: 40
+        },
+        {
+          id: 'node-5',
+          type: 'default',
+          position: { x: 700, y: 250 },
+          data: { label: 'Final Node B' },
+          width: 150,
+          height: 40
+        }
+      ];
+
+      // Multiple edges between the same nodes with different offsets
+      const edges = [
+        // Three edges from node-1 to node-2 with different offsets
+        {
+          id: 'edge-1-2-1',
+          source: 'node-1',
+          target: 'node-2',
+          type: 'smoothstep',
+          offset: -10, // Negative offset shifts edge up
+          animated: true,
+          label: 'Path 1'
+        },
+        {
+          id: 'edge-1-2-2',
+          source: 'node-1',
+          target: 'node-2',
+          type: 'smoothstep',
+          offset: 0, // No offset - center path
+          animated: false,
+          label: 'Path 2'
+        },
+        {
+          id: 'edge-1-2-3',
+          source: 'node-1',
+          target: 'node-2',
+          type: 'smoothstep',
+          offset: 10, // Positive offset shifts edge down
+          animated: true,
+          label: 'Path 3'
+        },
+        // Two edges from node-1 to node-3 with offsets
+        {
+          id: 'edge-1-3-1',
+          source: 'node-1',
+          target: 'node-3',
+          type: 'smoothstep',
+          offset: -10,
+          animated: false,
+          label: 'Route A'
+        },
+        {
+          id: 'edge-1-3-2',
+          source: 'node-1',
+          target: 'node-3',
+          type: 'smoothstep',
+          offset: 10,
+          animated: true,
+          label: 'Route B'
+        },
+        // Edges from node-2 to node-4 with offsets
+        {
+          id: 'edge-2-4-1',
+          source: 'node-2',
+          target: 'node-4',
+          type: 'smoothstep',
+          offset: -5,
+          animated: true,
+          label: 'Flow 1'
+        },
+        {
+          id: 'edge-2-4-2',
+          source: 'node-2',
+          target: 'node-4',
+          type: 'smoothstep',
+          offset: 5,
+          animated: false,
+          label: 'Flow 2'
+        },
+        // Edges from node-3 to node-5 with offsets
+        {
+          id: 'edge-3-5-1',
+          source: 'node-3',
+          target: 'node-5',
+          type: 'smoothstep',
+          offset: -5,
+          animated: false,
+          label: 'Stream 1'
+        },
+        {
+          id: 'edge-3-5-2',
+          source: 'node-3',
+          target: 'node-5',
+          type: 'smoothstep',
+          offset: 5,
+          animated: true,
+          label: 'Stream 2'
+        },
+        // Cross edges with offsets
+        {
+          id: 'edge-2-5',
+          source: 'node-2',
+          target: 'node-5',
+          type: 'smoothstep',
+          offset: 5,
+          animated: true,
+          label: 'Cross'
+        },
+        {
+          id: 'edge-3-4',
+          source: 'node-3',
+          target: 'node-4',
+          type: 'smoothstep',
+          offset: 0,
+          animated: false,
+          label: 'Cross'
+        }
+      ];
+
+      const flowCanvas = document.getElementById('flow');
+      const flowControls = document.getElementById('controls');
+
+      // Wait for components to be ready
+      customElements.whenDefined('flow-canvas').then(() => {
+        // Connect controls to flow instance
+        flowControls.instance = flowCanvas.instance;
+
+        // Set nodes and edges
+        flowCanvas.setNodes(nodes);
+        flowCanvas.setEdges(edges);
+
+        // Fit view button
+        document.getElementById('fit-view').addEventListener('click', () => {
+          flowCanvas.instance.fitView();
+        });
+
+        // Initial fit view
+        setTimeout(() => {
+          flowCanvas.instance.fitView();
+        }, 200);
+      });
+    </script>
+  </body>
+</html>
+
