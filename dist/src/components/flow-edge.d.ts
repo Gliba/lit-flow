@@ -15,6 +15,7 @@ export declare class FlowEdge extends LitElement {
     targetNode?: Node;
     animated: boolean;
     selected: boolean;
+    selectable: boolean;
     label: string;
     type: EdgeType;
     markerStart?: MarkerSpec | string;
@@ -22,6 +23,12 @@ export declare class FlowEdge extends LitElement {
     offset?: number;
     pathStyle?: Partial<CSSStyleDeclaration> | string;
     private markerHandleHalf;
+    private hovering;
+    /** Cached handle positions (from rAF); avoids DOM reads during render. */
+    private _cachedSource;
+    private _cachedTarget;
+    private _handleRafId;
+    private _lastPositionKey;
     /**
      * Convert style object to CSS string
      */
@@ -66,8 +73,36 @@ export declare class FlowEdge extends LitElement {
      * Get the target position (handle or node edge)
      */
     private getTargetPosition;
+    /**
+     * Node-only source position (no DOM reads). Use during render when using handles.
+     */
+    private getSourcePositionNodeOnly;
+    /**
+     * Node-only target position (no DOM reads). Use during render when using handles.
+     */
+    private getTargetPositionNodeOnly;
+    /**
+     * Resolve source/target for render. Uses node-only positions when handles are
+     * used (avoids getBoundingClientRect during render). Cached handle positions
+     * are applied after rAF in updated().
+     */
+    private getPositionsForRender;
+    private getPositionCacheKey;
+    /** True for the live connection-preview edge, which must always render. */
+    private get isPreview();
+    /**
+     * An endpoint is "known" once we have a real size for it — either a measured
+     * size or an explicit width. Until then the edge would have to guess (150x50)
+     * and visibly snap when the real size arrives, so we hold off rendering.
+     */
+    private endpointKnown;
+    updated(_changed: Map<string, unknown>): void;
+    disconnectedCallback(): void;
     render(): import("lit-html").TemplateResult<1>;
     private handleClick;
+    private emitHover;
+    private handlePointerEnter;
+    private handlePointerLeave;
 }
 declare global {
     interface HTMLElementTagNameMap {

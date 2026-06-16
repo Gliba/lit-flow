@@ -17,7 +17,13 @@ class FlowInstance {
     };
     this.subscribers = /* @__PURE__ */ new Set();
     this.panZoomInstance = null;
-    this.pendingNodes = [];
+    this.notifyScheduled = false;
+    this.pendingFit = null;
+    this.fitFallbackTimer = null;
+    this.didInitFit = false;
+    this.renderToken = 0;
+    this.settledToken = -1;
+    this.renderCompleteCallbacks = /* @__PURE__ */ new Set();
     this.panZoomUpdateOptions = null;
     this.options = {
       minZoom: 0.5,
@@ -65,7 +71,7 @@ class FlowInstance {
       userSelectionActive: false,
       zoomOnPinch: true,
       zoomOnScroll: true,
-      zoomOnDoubleClick: true,
+      zoomOnDoubleClick: this.options.zoomOnDoubleClick ?? false,
       zoomActivationKeyPressed: false,
       lib: "lit-flow",
       onTransformChange: (_t) => {
@@ -73,6 +79,7 @@ class FlowInstance {
       connectionInProgress: false
     };
     this.panZoomInstance.update(this.panZoomUpdateOptions);
+    this.maybeInitFit();
     this.notifySubscribers();
   }
   /**
@@ -88,10 +95,13 @@ class FlowInstance {
     }
   }
   destroy() {
+    this.clearFitFallback();
+    this.pendingFit = null;
     this.panZoomInstance?.destroy();
     this.panZoomInstance = null;
     this.container = null;
     this.subscribers.clear();
+    this.renderCompleteCallbacks.clear();
   }
   getState() {
     return this.state;
@@ -111,13 +121,17 @@ class FlowInstance {
     this.notifySubscribers();
   }
   setNodes(nodes) {
-    this.pendingNodes.push(...nodes.map((node) => node.id));
     this.state.nodes = nodes;
     this.updateLookups();
+    this.armRender();
+    this.maybeInitFit();
     this.notifySubscribers();
   }
   setEdges(edges) {
-    this.retryEdgeRendering(edges);
+    this.state.edges = edges;
+    this.updateLookups();
+    this.armRender();
+    this.notifySubscribers();
   }
   updateNode(id, updates) {
     this.state.nodes = this.state.nodes.map(
@@ -133,9 +147,17 @@ class FlowInstance {
     this.updateLookups();
     this.notifySubscribers();
   }
+  /**
+   * Add a node to the flow.
+   *
+   * If `position` is omitted, it will be auto-calculated based on the current
+   * viewport and container size, trying to avoid overlapping existing nodes.
+   */
   addNode(node) {
-    this.state.nodes = [...this.state.nodes, node];
+    const nodeWithPosition = node.position ? node : { ...node, position: this.getAutoNodePosition(node) };
+    this.state.nodes = [...this.state.nodes, nodeWithPosition];
     this.updateLookups();
+    this.armRender();
     this.notifySubscribers();
   }
   removeNode(id) {
@@ -144,21 +166,34 @@ class FlowInstance {
       (edge) => edge.source !== id && edge.target !== id
     );
     this.updateLookups();
+    this.armRender();
     this.notifySubscribers();
   }
   addEdge(edge) {
     this.state.edges = [...this.state.edges, edge];
     this.updateLookups();
+    this.armRender();
     this.notifySubscribers();
   }
   removeEdge(id) {
     this.state.edges = this.state.edges.filter((edge) => edge.id !== id);
     this.updateLookups();
+    this.armRender();
     this.notifySubscribers();
   }
   subscribe(callback) {
     this.subscribers.add(callback);
     return () => this.subscribers.delete(callback);
+  }
+  /**
+   * Register a callback that fires once after a batch of data (set/add/remove of
+   * nodes or edges) has finished rendering — i.e. every node has been measured
+   * and edges have been laid out at their final positions. Fires once per
+   * structural revision. Returns an unsubscribe function.
+   */
+  onRenderComplete(callback) {
+    this.renderCompleteCallbacks.add(callback);
+    return () => this.renderCompleteCallbacks.delete(callback);
   }
   zoomIn() {
     const currentZoom = this.state.viewport.zoom;
@@ -170,32 +205,133 @@ class FlowInstance {
     const newZoom = Math.max(currentZoom / 1.2, this.options.minZoom || 0.5);
     this.setViewport({ ...this.state.viewport, zoom: newZoom });
   }
-  fitView() {
+  /**
+   * Center and zoom the viewport so every node is visible.
+   *
+   * @param options.padding     Gap (px) to leave around the content (default 50).
+   * @param options.awaitMeasure When true, if the nodes aren't measured yet or
+   *   the container has no size, the fit is deferred and retried automatically
+   *   once measurements land — use this for fit-on-load.
+   */
+  fitView(options) {
+    const padding = options?.padding ?? 50;
     if (this.state.nodes.length === 0 || !this.container) return;
+    if (options?.awaitMeasure && !this.canFitAccurately()) {
+      this.pendingFit = { padding };
+      this.scheduleFitFallback();
+      return;
+    }
+    const containerWidth = this.container.clientWidth;
+    const containerHeight = this.container.clientHeight;
+    if (containerWidth <= 0 || containerHeight <= 0) {
+      this.pendingFit = { padding };
+      this.scheduleFitFallback();
+      return;
+    }
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     this.state.nodes.forEach((node) => {
-      const width = node.measured?.width || node.width || 150;
-      const height = node.measured?.height || node.height || 50;
+      const { width, height } = this.getNodeSize(node);
       minX = Math.min(minX, node.position.x);
       minY = Math.min(minY, node.position.y);
       maxX = Math.max(maxX, node.position.x + width);
       maxY = Math.max(maxY, node.position.y + height);
     });
-    const bounds = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY
-    };
-    const containerWidth = this.container.clientWidth;
-    const containerHeight = this.container.clientHeight;
-    const padding = 50;
-    const zoomX = (containerWidth - padding * 2) / bounds.width;
-    const zoomY = (containerHeight - padding * 2) / bounds.height;
-    const zoom = Math.min(zoomX, zoomY, this.options.maxZoom || 2);
-    const x = (containerWidth - bounds.width * zoom) / 2 - bounds.x * zoom;
-    const y = (containerHeight - bounds.height * zoom) / 2 - bounds.y * zoom;
+    const boundsWidth = Math.max(maxX - minX, 1);
+    const boundsHeight = Math.max(maxY - minY, 1);
+    const minZoom = this.options.minZoom ?? 0.5;
+    const maxZoom = this.options.maxZoom ?? 2;
+    const zoomX = (containerWidth - padding * 2) / boundsWidth;
+    const zoomY = (containerHeight - padding * 2) / boundsHeight;
+    let zoom = Math.min(zoomX, zoomY, maxZoom);
+    zoom = Math.max(zoom, minZoom);
+    if (!isFinite(zoom) || zoom <= 0) zoom = 1;
+    const x = (containerWidth - boundsWidth * zoom) / 2 - minX * zoom;
+    const y = (containerHeight - boundsHeight * zoom) / 2 - minY * zoom;
+    this.clearFitFallback();
+    this.pendingFit = null;
     this.setViewport({ x, y, zoom });
+  }
+  /** Effective rendered size of a node, falling back through measured → explicit → shape data → default. */
+  getNodeSize(node) {
+    const data = node.data;
+    const width = node.measured?.width ?? node.width ?? data?.size?.width ?? 150;
+    const height = node.measured?.height ?? node.height ?? data?.size?.height ?? 50;
+    return { width, height };
+  }
+  /** True once every node has a real size and the container has been laid out. */
+  canFitAccurately() {
+    if (!this.container) return false;
+    if (this.container.clientWidth <= 0 || this.container.clientHeight <= 0) return false;
+    return this.areNodesMeasured();
+  }
+  /** True once every node has a real (non-fallback) size. */
+  areNodesMeasured() {
+    return this.state.nodes.every(
+      (n2) => n2.measured?.width != null || typeof n2.width === "number" || n2.type === "shape" || n2.data?.size
+    );
+  }
+  /** Mark a new structural revision whose render we should wait to settle. */
+  armRender() {
+    this.renderToken++;
+  }
+  /**
+   * Emit render-complete once the current revision's nodes are all measured.
+   * Called from the batched notify, so it sees the measurements that just
+   * landed. Defers two frames so edges resolve their handle positions and
+   * paint before we report "done".
+   */
+  maybeEmitRenderComplete() {
+    if (this.renderCompleteCallbacks.size === 0) return;
+    if (this.settledToken === this.renderToken) return;
+    if (this.state.nodes.length > 0 && !this.areNodesMeasured()) return;
+    this.settledToken = this.renderToken;
+    const raf = typeof requestAnimationFrame !== "undefined" ? (cb) => requestAnimationFrame(cb) : (cb) => {
+      setTimeout(cb, 16);
+    };
+    raf(() => raf(() => {
+      if (this.settledToken !== this.renderToken) return;
+      this.renderCompleteCallbacks.forEach((cb) => cb(this.state));
+    }));
+  }
+  /** Run a deferred fit once nodes are measured. Called from the batched notify. */
+  maybeRunPendingFit() {
+    if (!this.pendingFit) return;
+    if (!this.canFitAccurately()) return;
+    const { padding } = this.pendingFit;
+    this.pendingFit = null;
+    this.clearFitFallback();
+    this.fitView({ padding });
+  }
+  /**
+   * Safety net: if measurements never complete (e.g. a node errors), force the
+   * deferred fit with whatever sizes are available rather than leaving the
+   * viewport unfit.
+   */
+  scheduleFitFallback() {
+    if (this.fitFallbackTimer != null) return;
+    this.fitFallbackTimer = setTimeout(() => {
+      this.fitFallbackTimer = null;
+      if (!this.pendingFit) return;
+      const { padding } = this.pendingFit;
+      this.pendingFit = null;
+      if (this.container && this.container.clientWidth > 0 && this.container.clientHeight > 0) {
+        this.fitView({ padding });
+      }
+    }, 400);
+  }
+  clearFitFallback() {
+    if (this.fitFallbackTimer != null) {
+      clearTimeout(this.fitFallbackTimer);
+      this.fitFallbackTimer = null;
+    }
+  }
+  /** Trigger the one-time fit-on-load when `fitViewOnInit` (or legacy `fitView`) is set. */
+  maybeInitFit() {
+    if (this.didInitFit) return;
+    if (!(this.options.fitViewOnInit || this.options.fitView)) return;
+    if (!this.container || this.state.nodes.length === 0) return;
+    this.didInitFit = true;
+    this.fitView({ awaitMeasure: true });
   }
   updateLookups() {
     this.state.nodeLookup.clear();
@@ -216,50 +352,69 @@ class FlowInstance {
       this.state.edgeLookup.set(edge.id, edge);
     });
   }
-  /**
-   * Check if a node is fully rendered
-   */
-  isNodeRendered(nodeId) {
-    if (!this.container) return false;
-    const nodeEl = this.container.querySelector(`[id="${CSS.escape(nodeId)}"]`);
-    if (!nodeEl) return false;
-    const rect = nodeEl.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  }
-  /**
-   * Check if any of the required nodes are still pending
-   */
-  hasPendingNodes(nodeIds) {
-    return nodeIds.some((id) => this.pendingNodes.includes(id) || !this.isNodeRendered(id));
-  }
-  /**
-   * Remove node from pending list when it's rendered
-   */
-  markNodeAsRendered(nodeId) {
-    const index = this.pendingNodes.indexOf(nodeId);
-    if (index > -1) {
-      this.pendingNodes.splice(index, 1);
+  getAutoNodePosition(node) {
+    const viewport = this.state.viewport;
+    const zoom = viewport.zoom || 1;
+    const nodeWidth = node?.measured?.width || node?.width || 150;
+    const nodeHeight = node?.measured?.height || node?.height || 50;
+    if (!this.container) {
+      const last = this.state.nodes[this.state.nodes.length - 1];
+      if (!last) return { x: 0, y: 0 };
+      const lastW = last.measured?.width || last.width || 150;
+      return { x: last.position.x + lastW + 40, y: last.position.y };
     }
-  }
-  /**
-   * Retry edge rendering with delay if nodes are still pending
-   */
-  retryEdgeRendering(edges, retryCount = 0, maxRetries = 10) {
-    const allNodeIds = edges.flatMap((edge) => [edge.source, edge.target]);
-    const uniqueNodeIds = [...new Set(allNodeIds)];
-    if (this.hasPendingNodes(uniqueNodeIds) && retryCount < maxRetries) {
-      setTimeout(() => {
-        this.retryEdgeRendering(edges, retryCount + 1, maxRetries);
-      }, 100);
-    } else {
-      this.state.edges = edges;
-      this.updateLookups();
-      this.notifySubscribers();
-      uniqueNodeIds.forEach((id) => this.markNodeAsRendered(id));
+    const centerX = (this.container.clientWidth / 2 - viewport.x) / zoom;
+    const centerY = (this.container.clientHeight / 2 - viewport.y) / zoom;
+    const baseX = centerX - nodeWidth / 2;
+    const baseY = centerY - nodeHeight / 2;
+    const step = this.options.snapToGrid ? this.options.snapGrid?.[0] ?? 20 : 20;
+    const maxIterations = 900;
+    const isOverlapping = (pos) => {
+      const a2 = { x: pos.x, y: pos.y, w: nodeWidth, h: nodeHeight };
+      return this.state.nodes.some((n2) => {
+        const w = n2.measured?.width || n2.width || 150;
+        const h2 = n2.measured?.height || n2.height || 50;
+        const b = { x: n2.position.x, y: n2.position.y, w, h: h2 };
+        const separated = a2.x + a2.w <= b.x || b.x + b.w <= a2.x || a2.y + a2.h <= b.y || b.y + b.h <= a2.y;
+        return !separated;
+      });
+    };
+    let gx = 0;
+    let gy = 0;
+    let dx = 0;
+    let dy = -1;
+    for (let i2 = 0; i2 < maxIterations; i2++) {
+      const candidate = { x: baseX + gx * step, y: baseY + gy * step };
+      if (!isOverlapping(candidate)) {
+        return this.options.snapToGrid ? this.snapPositionToGrid(candidate) : candidate;
+      }
+      if (gx === gy || gx < 0 && gx === -gy || gx > 0 && gx === 1 - gy) {
+        const tmp = dx;
+        dx = -dy;
+        dy = tmp;
+      }
+      gx += dx;
+      gy += dy;
     }
+    const fallback = { x: baseX, y: baseY };
+    return this.options.snapToGrid ? this.snapPositionToGrid(fallback) : fallback;
+  }
+  snapPositionToGrid(pos) {
+    const [gx, gy] = this.options.snapGrid ?? [20, 20];
+    return {
+      x: Math.round(pos.x / gx) * gx,
+      y: Math.round(pos.y / gy) * gy
+    };
   }
   notifySubscribers() {
-    this.subscribers.forEach((callback) => callback(this.state));
+    if (this.notifyScheduled) return;
+    this.notifyScheduled = true;
+    queueMicrotask(() => {
+      this.notifyScheduled = false;
+      this.maybeRunPendingFit();
+      this.subscribers.forEach((callback) => callback(this.state));
+      this.maybeEmitRenderComplete();
+    });
   }
 }
 function createStore(initialState = {}) {
@@ -304,13 +459,338 @@ function createStore(initialState = {}) {
     }
   };
 }
-function getDistance(a, b) {
-  return Math.sqrt(Math.pow(b.x - a.x, 2) + Math.pow(b.y - a.y, 2));
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+const t$2 = globalThis, i$1 = t$2.trustedTypes, s$1 = i$1 ? i$1.createPolicy("lit-html", { createHTML: (t2) => t2 }) : void 0, e$1 = "$lit$", h = `lit$${Math.random().toFixed(9).slice(2)}$`, o = "?" + h, n = `<${o}>`, r$1 = document, l = () => r$1.createComment(""), c$1 = (t2) => null === t2 || "object" != typeof t2 && "function" != typeof t2, a = Array.isArray, u$2 = (t2) => a(t2) || "function" == typeof t2?.[Symbol.iterator], d = "[ 	\n\f\r]", f = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, v$1 = /-->/g, _ = />/g, m$1 = RegExp(`>|${d}(?:([^\\s"'>=/]+)(${d}*=${d}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`, "g"), p$1 = /'/g, g = /"/g, $ = /^(?:script|style|textarea|title)$/i, T = Symbol.for("lit-noChange"), E = Symbol.for("lit-nothing"), A = /* @__PURE__ */ new WeakMap(), C = r$1.createTreeWalker(r$1, 129);
+function P(t2, i2) {
+  if (!a(t2) || !t2.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return void 0 !== s$1 ? s$1.createHTML(i2) : i2;
 }
-function getCenter(a, b) {
+const V = (t2, i2) => {
+  const s2 = t2.length - 1, o2 = [];
+  let r2, l2 = 2 === i2 ? "<svg>" : 3 === i2 ? "<math>" : "", c2 = f;
+  for (let i3 = 0; i3 < s2; i3++) {
+    const s3 = t2[i3];
+    let a2, u2, d2 = -1, y = 0;
+    for (; y < s3.length && (c2.lastIndex = y, u2 = c2.exec(s3), null !== u2); ) y = c2.lastIndex, c2 === f ? "!--" === u2[1] ? c2 = v$1 : void 0 !== u2[1] ? c2 = _ : void 0 !== u2[2] ? ($.test(u2[2]) && (r2 = RegExp("</" + u2[2], "g")), c2 = m$1) : void 0 !== u2[3] && (c2 = m$1) : c2 === m$1 ? ">" === u2[0] ? (c2 = r2 ?? f, d2 = -1) : void 0 === u2[1] ? d2 = -2 : (d2 = c2.lastIndex - u2[2].length, a2 = u2[1], c2 = void 0 === u2[3] ? m$1 : '"' === u2[3] ? g : p$1) : c2 === g || c2 === p$1 ? c2 = m$1 : c2 === v$1 || c2 === _ ? c2 = f : (c2 = m$1, r2 = void 0);
+    const x = c2 === m$1 && t2[i3 + 1].startsWith("/>") ? " " : "";
+    l2 += c2 === f ? s3 + n : d2 >= 0 ? (o2.push(a2), s3.slice(0, d2) + e$1 + s3.slice(d2) + h + x) : s3 + h + (-2 === d2 ? i3 : x);
+  }
+  return [P(t2, l2 + (t2[s2] || "<?>") + (2 === i2 ? "</svg>" : 3 === i2 ? "</math>" : "")), o2];
+};
+class N {
+  constructor({ strings: t2, _$litType$: s2 }, n2) {
+    let r2;
+    this.parts = [];
+    let c2 = 0, a2 = 0;
+    const u2 = t2.length - 1, d2 = this.parts, [f2, v2] = V(t2, s2);
+    if (this.el = N.createElement(f2, n2), C.currentNode = this.el.content, 2 === s2 || 3 === s2) {
+      const t3 = this.el.content.firstChild;
+      t3.replaceWith(...t3.childNodes);
+    }
+    for (; null !== (r2 = C.nextNode()) && d2.length < u2; ) {
+      if (1 === r2.nodeType) {
+        if (r2.hasAttributes()) for (const t3 of r2.getAttributeNames()) if (t3.endsWith(e$1)) {
+          const i2 = v2[a2++], s3 = r2.getAttribute(t3).split(h), e2 = /([.?@])?(.*)/.exec(i2);
+          d2.push({ type: 1, index: c2, name: e2[2], strings: s3, ctor: "." === e2[1] ? H : "?" === e2[1] ? I : "@" === e2[1] ? L : k }), r2.removeAttribute(t3);
+        } else t3.startsWith(h) && (d2.push({ type: 6, index: c2 }), r2.removeAttribute(t3));
+        if ($.test(r2.tagName)) {
+          const t3 = r2.textContent.split(h), s3 = t3.length - 1;
+          if (s3 > 0) {
+            r2.textContent = i$1 ? i$1.emptyScript : "";
+            for (let i2 = 0; i2 < s3; i2++) r2.append(t3[i2], l()), C.nextNode(), d2.push({ type: 2, index: ++c2 });
+            r2.append(t3[s3], l());
+          }
+        }
+      } else if (8 === r2.nodeType) if (r2.data === o) d2.push({ type: 2, index: c2 });
+      else {
+        let t3 = -1;
+        for (; -1 !== (t3 = r2.data.indexOf(h, t3 + 1)); ) d2.push({ type: 7, index: c2 }), t3 += h.length - 1;
+      }
+      c2++;
+    }
+  }
+  static createElement(t2, i2) {
+    const s2 = r$1.createElement("template");
+    return s2.innerHTML = t2, s2;
+  }
+}
+function S(t2, i2, s2 = t2, e2) {
+  if (i2 === T) return i2;
+  let h2 = void 0 !== e2 ? s2._$Co?.[e2] : s2._$Cl;
+  const o2 = c$1(i2) ? void 0 : i2._$litDirective$;
+  return h2?.constructor !== o2 && (h2?._$AO?.(false), void 0 === o2 ? h2 = void 0 : (h2 = new o2(t2), h2._$AT(t2, s2, e2)), void 0 !== e2 ? (s2._$Co ??= [])[e2] = h2 : s2._$Cl = h2), void 0 !== h2 && (i2 = S(t2, h2._$AS(t2, i2.values), h2, e2)), i2;
+}
+let M$1 = class M {
+  constructor(t2, i2) {
+    this._$AV = [], this._$AN = void 0, this._$AD = t2, this._$AM = i2;
+  }
+  get parentNode() {
+    return this._$AM.parentNode;
+  }
+  get _$AU() {
+    return this._$AM._$AU;
+  }
+  u(t2) {
+    const { el: { content: i2 }, parts: s2 } = this._$AD, e2 = (t2?.creationScope ?? r$1).importNode(i2, true);
+    C.currentNode = e2;
+    let h2 = C.nextNode(), o2 = 0, n2 = 0, l2 = s2[0];
+    for (; void 0 !== l2; ) {
+      if (o2 === l2.index) {
+        let i3;
+        2 === l2.type ? i3 = new R(h2, h2.nextSibling, this, t2) : 1 === l2.type ? i3 = new l2.ctor(h2, l2.name, l2.strings, this, t2) : 6 === l2.type && (i3 = new z(h2, this, t2)), this._$AV.push(i3), l2 = s2[++n2];
+      }
+      o2 !== l2?.index && (h2 = C.nextNode(), o2++);
+    }
+    return C.currentNode = r$1, e2;
+  }
+  p(t2) {
+    let i2 = 0;
+    for (const s2 of this._$AV) void 0 !== s2 && (void 0 !== s2.strings ? (s2._$AI(t2, s2, i2), i2 += s2.strings.length - 2) : s2._$AI(t2[i2])), i2++;
+  }
+};
+class R {
+  get _$AU() {
+    return this._$AM?._$AU ?? this._$Cv;
+  }
+  constructor(t2, i2, s2, e2) {
+    this.type = 2, this._$AH = E, this._$AN = void 0, this._$AA = t2, this._$AB = i2, this._$AM = s2, this.options = e2, this._$Cv = e2?.isConnected ?? true;
+  }
+  get parentNode() {
+    let t2 = this._$AA.parentNode;
+    const i2 = this._$AM;
+    return void 0 !== i2 && 11 === t2?.nodeType && (t2 = i2.parentNode), t2;
+  }
+  get startNode() {
+    return this._$AA;
+  }
+  get endNode() {
+    return this._$AB;
+  }
+  _$AI(t2, i2 = this) {
+    t2 = S(this, t2, i2), c$1(t2) ? t2 === E || null == t2 || "" === t2 ? (this._$AH !== E && this._$AR(), this._$AH = E) : t2 !== this._$AH && t2 !== T && this._(t2) : void 0 !== t2._$litType$ ? this.$(t2) : void 0 !== t2.nodeType ? this.T(t2) : u$2(t2) ? this.k(t2) : this._(t2);
+  }
+  O(t2) {
+    return this._$AA.parentNode.insertBefore(t2, this._$AB);
+  }
+  T(t2) {
+    this._$AH !== t2 && (this._$AR(), this._$AH = this.O(t2));
+  }
+  _(t2) {
+    this._$AH !== E && c$1(this._$AH) ? this._$AA.nextSibling.data = t2 : this.T(r$1.createTextNode(t2)), this._$AH = t2;
+  }
+  $(t2) {
+    const { values: i2, _$litType$: s2 } = t2, e2 = "number" == typeof s2 ? this._$AC(t2) : (void 0 === s2.el && (s2.el = N.createElement(P(s2.h, s2.h[0]), this.options)), s2);
+    if (this._$AH?._$AD === e2) this._$AH.p(i2);
+    else {
+      const t3 = new M$1(e2, this), s3 = t3.u(this.options);
+      t3.p(i2), this.T(s3), this._$AH = t3;
+    }
+  }
+  _$AC(t2) {
+    let i2 = A.get(t2.strings);
+    return void 0 === i2 && A.set(t2.strings, i2 = new N(t2)), i2;
+  }
+  k(t2) {
+    a(this._$AH) || (this._$AH = [], this._$AR());
+    const i2 = this._$AH;
+    let s2, e2 = 0;
+    for (const h2 of t2) e2 === i2.length ? i2.push(s2 = new R(this.O(l()), this.O(l()), this, this.options)) : s2 = i2[e2], s2._$AI(h2), e2++;
+    e2 < i2.length && (this._$AR(s2 && s2._$AB.nextSibling, e2), i2.length = e2);
+  }
+  _$AR(t2 = this._$AA.nextSibling, i2) {
+    for (this._$AP?.(false, true, i2); t2 !== this._$AB; ) {
+      const i3 = t2.nextSibling;
+      t2.remove(), t2 = i3;
+    }
+  }
+  setConnected(t2) {
+    void 0 === this._$AM && (this._$Cv = t2, this._$AP?.(t2));
+  }
+}
+class k {
+  get tagName() {
+    return this.element.tagName;
+  }
+  get _$AU() {
+    return this._$AM._$AU;
+  }
+  constructor(t2, i2, s2, e2, h2) {
+    this.type = 1, this._$AH = E, this._$AN = void 0, this.element = t2, this.name = i2, this._$AM = e2, this.options = h2, s2.length > 2 || "" !== s2[0] || "" !== s2[1] ? (this._$AH = Array(s2.length - 1).fill(new String()), this.strings = s2) : this._$AH = E;
+  }
+  _$AI(t2, i2 = this, s2, e2) {
+    const h2 = this.strings;
+    let o2 = false;
+    if (void 0 === h2) t2 = S(this, t2, i2, 0), o2 = !c$1(t2) || t2 !== this._$AH && t2 !== T, o2 && (this._$AH = t2);
+    else {
+      const e3 = t2;
+      let n2, r2;
+      for (t2 = h2[0], n2 = 0; n2 < h2.length - 1; n2++) r2 = S(this, e3[s2 + n2], i2, n2), r2 === T && (r2 = this._$AH[n2]), o2 ||= !c$1(r2) || r2 !== this._$AH[n2], r2 === E ? t2 = E : t2 !== E && (t2 += (r2 ?? "") + h2[n2 + 1]), this._$AH[n2] = r2;
+    }
+    o2 && !e2 && this.j(t2);
+  }
+  j(t2) {
+    t2 === E ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t2 ?? "");
+  }
+}
+class H extends k {
+  constructor() {
+    super(...arguments), this.type = 3;
+  }
+  j(t2) {
+    this.element[this.name] = t2 === E ? void 0 : t2;
+  }
+}
+class I extends k {
+  constructor() {
+    super(...arguments), this.type = 4;
+  }
+  j(t2) {
+    this.element.toggleAttribute(this.name, !!t2 && t2 !== E);
+  }
+}
+class L extends k {
+  constructor(t2, i2, s2, e2, h2) {
+    super(t2, i2, s2, e2, h2), this.type = 5;
+  }
+  _$AI(t2, i2 = this) {
+    if ((t2 = S(this, t2, i2, 0) ?? E) === T) return;
+    const s2 = this._$AH, e2 = t2 === E && s2 !== E || t2.capture !== s2.capture || t2.once !== s2.once || t2.passive !== s2.passive, h2 = t2 !== E && (s2 === E || e2);
+    e2 && this.element.removeEventListener(this.name, this, s2), h2 && this.element.addEventListener(this.name, this, t2), this._$AH = t2;
+  }
+  handleEvent(t2) {
+    "function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t2) : this._$AH.handleEvent(t2);
+  }
+}
+class z {
+  constructor(t2, i2, s2) {
+    this.element = t2, this.type = 6, this._$AN = void 0, this._$AM = i2, this.options = s2;
+  }
+  get _$AU() {
+    return this._$AM._$AU;
+  }
+  _$AI(t2) {
+    S(this, t2);
+  }
+}
+const Z = { I: R }, j = t$2.litHtmlPolyfillSupport;
+j?.(N, R), (t$2.litHtmlVersions ??= []).push("3.3.1");
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+const t$1 = { CHILD: 2 }, e = (t2) => (...e2) => ({ _$litDirective$: t2, values: e2 });
+class i {
+  constructor(t2) {
+  }
+  get _$AU() {
+    return this._$AM._$AU;
+  }
+  _$AT(t2, e2, i2) {
+    this._$Ct = t2, this._$AM = e2, this._$Ci = i2;
+  }
+  _$AS(t2, e2) {
+    return this.update(t2, e2);
+  }
+  update(t2, e2) {
+    return this.render(...e2);
+  }
+}
+/**
+ * @license
+ * Copyright 2020 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+const { I: t } = Z, r = () => document.createComment(""), s = (o2, i2, n2) => {
+  const e2 = o2._$AA.parentNode, l2 = void 0 === i2 ? o2._$AB : i2._$AA;
+  if (void 0 === n2) {
+    const i3 = e2.insertBefore(r(), l2), d2 = e2.insertBefore(r(), l2);
+    n2 = new t(i3, d2, o2, o2.options);
+  } else {
+    const t2 = n2._$AB.nextSibling, i3 = n2._$AM, d2 = i3 !== o2;
+    if (d2) {
+      let t3;
+      n2._$AQ?.(o2), n2._$AM = o2, void 0 !== n2._$AP && (t3 = o2._$AU) !== i3._$AU && n2._$AP(t3);
+    }
+    if (t2 !== l2 || d2) {
+      let o3 = n2._$AA;
+      for (; o3 !== t2; ) {
+        const t3 = o3.nextSibling;
+        e2.insertBefore(o3, l2), o3 = t3;
+      }
+    }
+  }
+  return n2;
+}, v = (o2, t2, i2 = o2) => (o2._$AI(t2, i2), o2), u$1 = {}, m = (o2, t2 = u$1) => o2._$AH = t2, p = (o2) => o2._$AH, M2 = (o2) => {
+  o2._$AR(), o2._$AA.remove();
+};
+/**
+ * @license
+ * Copyright 2017 Google LLC
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+const u = (e2, s2, t2) => {
+  const r2 = /* @__PURE__ */ new Map();
+  for (let l2 = s2; l2 <= t2; l2++) r2.set(e2[l2], l2);
+  return r2;
+}, c = e(class extends i {
+  constructor(e2) {
+    if (super(e2), e2.type !== t$1.CHILD) throw Error("repeat() can only be used in text expressions");
+  }
+  dt(e2, s2, t2) {
+    let r2;
+    void 0 === t2 ? t2 = s2 : void 0 !== s2 && (r2 = s2);
+    const l2 = [], o2 = [];
+    let i2 = 0;
+    for (const s3 of e2) l2[i2] = r2 ? r2(s3, i2) : i2, o2[i2] = t2(s3, i2), i2++;
+    return { values: o2, keys: l2 };
+  }
+  render(e2, s2, t2) {
+    return this.dt(e2, s2, t2).values;
+  }
+  update(s$12, [t2, r2, c2]) {
+    const d2 = p(s$12), { values: p$12, keys: a2 } = this.dt(t2, r2, c2);
+    if (!Array.isArray(d2)) return this.ut = a2, p$12;
+    const h2 = this.ut ??= [], v$12 = [];
+    let m$12, y, x = 0, j2 = d2.length - 1, k2 = 0, w = p$12.length - 1;
+    for (; x <= j2 && k2 <= w; ) if (null === d2[x]) x++;
+    else if (null === d2[j2]) j2--;
+    else if (h2[x] === a2[k2]) v$12[k2] = v(d2[x], p$12[k2]), x++, k2++;
+    else if (h2[j2] === a2[w]) v$12[w] = v(d2[j2], p$12[w]), j2--, w--;
+    else if (h2[x] === a2[w]) v$12[w] = v(d2[x], p$12[w]), s(s$12, v$12[w + 1], d2[x]), x++, w--;
+    else if (h2[j2] === a2[k2]) v$12[k2] = v(d2[j2], p$12[k2]), s(s$12, d2[x], d2[j2]), j2--, k2++;
+    else if (void 0 === m$12 && (m$12 = u(a2, k2, w), y = u(h2, x, j2)), m$12.has(h2[x])) if (m$12.has(h2[j2])) {
+      const e2 = y.get(a2[k2]), t3 = void 0 !== e2 ? d2[e2] : null;
+      if (null === t3) {
+        const e3 = s(s$12, d2[x]);
+        v(e3, p$12[k2]), v$12[k2] = e3;
+      } else v$12[k2] = v(t3, p$12[k2]), s(s$12, d2[x], t3), d2[e2] = null;
+      k2++;
+    } else M2(d2[j2]), j2--;
+    else M2(d2[x]), x++;
+    for (; k2 <= w; ) {
+      const e2 = s(s$12, v$12[w + 1]);
+      v(e2, p$12[k2]), v$12[k2++] = e2;
+    }
+    for (; x <= j2; ) {
+      const e2 = d2[x++];
+      null !== e2 && M2(e2);
+    }
+    return this.ut = a2, m(s$12, v$12), T;
+  }
+});
+function getDistance(a2, b) {
+  return Math.sqrt(Math.pow(b.x - a2.x, 2) + Math.pow(b.y - a2.y, 2));
+}
+function getCenter(a2, b) {
   return {
-    x: (a.x + b.x) / 2,
-    y: (a.y + b.y) / 2
+    x: (a2.x + b.x) / 2,
+    y: (a2.y + b.y) / 2
   };
 }
 function getBezierPath(params) {
@@ -329,8 +809,8 @@ var __defProp$8 = Object.defineProperty;
 var __getOwnPropDesc$9 = Object.getOwnPropertyDescriptor;
 var __decorateClass$a = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$9(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$8(target, key, result);
   return result;
@@ -348,8 +828,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     };
     this.connection = null;
     this.isHoveringNode = false;
-    this.onHandleStart = (e) => {
-      const { nodeId, type, handleId } = e.detail;
+    this.onHandleStart = (e2) => {
+      const { nodeId, type, handleId } = e2.detail;
       this.connection = { from: { nodeId, handleId } };
       if (this.onConnectStart) {
         this.onConnectStart({
@@ -359,26 +839,26 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
         });
       }
     };
-    this.onMouseMove = (e) => {
+    this.onMouseMove = (e2) => {
       if (!this.connection) return;
-      const p = this.screenToCanvas(e.clientX, e.clientY);
-      this.connection.preview = p;
+      const p2 = this.screenToCanvas(e2.clientX, e2.clientY);
+      this.connection.preview = p2;
       this.requestUpdate();
     };
-    this.onMouseUp = (e) => {
+    this.onMouseUp = (e2) => {
       if (!this.connection) return;
-      const path = e.composedPath();
+      const path = e2.composedPath();
       let targetEl = null;
       let targetHandleId;
-      for (const t of path) {
-        if (t instanceof HTMLElement) {
-          const tagName = t.tagName.toLowerCase();
+      for (const t2 of path) {
+        if (t2 instanceof HTMLElement) {
+          const tagName = t2.tagName.toLowerCase();
           if (tagName === "flow-node" || Object.values(this.nodeTypes).some((tag) => tag === tagName)) {
-            targetEl = t;
+            targetEl = t2;
             break;
           }
-          if (t.dataset.handleId) {
-            targetHandleId = t.dataset.handleId;
+          if (t2.dataset.handleId) {
+            targetHandleId = t2.dataset.handleId;
           }
         }
       }
@@ -395,7 +875,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
         sourceHandleId = this.connection.from.handleId;
         finalTargetHandleId = targetHandleId;
         if (!finalTargetHandleId) {
-          const targetNode = this.nodes.find((n) => n.id === targetId);
+          const targetNode = this.nodes.find((n2) => n2.id === targetId);
           if (targetNode && targetNode.type === "shape") {
             finalTargetHandleId = this.determineBestTargetHandle(sourceNodeId, targetId);
           }
@@ -429,8 +909,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
       this.connection = null;
       this.requestUpdate();
     };
-    this.onNodeMouseEnter = (e) => {
-      const target = e.target;
+    this.onNodeMouseEnter = (e2) => {
+      const target = e2.target;
       const nodeTypes = ["flow-node", ...Object.values(this.nodeTypes)];
       let nodeElement = null;
       for (const nodeType of nodeTypes) {
@@ -447,8 +927,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
         this.instance.setPanOnDrag(false);
       }
     };
-    this.onNodeMouseLeave = (e) => {
-      const target = e.target;
+    this.onNodeMouseLeave = (e2) => {
+      const target = e2.target;
       const nodeTypes = ["flow-node", ...Object.values(this.nodeTypes)];
       let nodeElement = null;
       for (const nodeType of nodeTypes) {
@@ -460,7 +940,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
       }
       if (nodeElement && this.isHoveringNode) {
         setTimeout(() => {
-          const pointElement = document.elementFromPoint(e.clientX, e.clientY);
+          const pointElement = document.elementFromPoint(e2.clientX, e2.clientY);
           if (!pointElement || !(pointElement instanceof HTMLElement) || !this.isElementNode(pointElement)) {
             this.isHoveringNode = false;
             this.instance.setPanOnDrag(true);
@@ -468,29 +948,29 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
         }, 10);
       }
     };
-    this.onNodeSelect = (e) => {
-      const { nodeId, selected, node } = e.detail;
+    this.onNodeSelect = (e2) => {
+      const { nodeId, selected, node } = e2.detail;
       this.instance.updateNode(nodeId, { selected });
       this.dispatchEvent(new CustomEvent("node-selected", {
         detail: {
           nodeId,
           selected,
           node,
-          allSelectedNodes: this.nodes.filter((n) => n.selected)
+          allSelectedNodes: this.nodes.filter((n2) => n2.selected)
         },
         bubbles: true,
         composed: true
       }));
     };
-    this.onEdgeSelect = (e) => {
-      const { edgeId, selected, edge } = e.detail;
+    this.onEdgeSelect = (e2) => {
+      const { edgeId, selected, edge } = e2.detail;
       this.instance.updateEdge(edgeId, { selected });
       this.dispatchEvent(new CustomEvent("edge-selected", {
         detail: {
           edgeId,
           selected,
           edge,
-          allSelectedEdges: this.edges.filter((e2) => e2.selected)
+          allSelectedEdges: this.edges.filter((e22) => e22.selected)
         },
         bubbles: true,
         composed: true
@@ -507,12 +987,12 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     if (!el || !viewportEl) return null;
     const rect = el.getBoundingClientRect();
     const vpRect = viewportEl.getBoundingClientRect();
-    const z = this.viewport.zoom || 1;
-    const x = (rect.left - vpRect.left - this.viewport.x) / z;
-    const y = (rect.top - vpRect.top - this.viewport.y) / z;
-    const w = rect.width / z;
-    const h = rect.height / z;
-    const cy = y + h / 2;
+    const z2 = this.viewport.zoom || 1;
+    const x = (rect.left - vpRect.left - this.viewport.x) / z2;
+    const y = (rect.top - vpRect.top - this.viewport.y) / z2;
+    const w = rect.width / z2;
+    const h2 = rect.height / z2;
+    const cy = y + h2 / 2;
     return { left: { x, y: cy }, right: { x: x + w, y: cy } };
   }
   /**
@@ -530,7 +1010,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
       handleEl = nodeEl.querySelector(`[data-handle-id="${CSS.escape(handleId)}"]`);
     }
     if (!handleEl) return null;
-    const node = this.nodes.find((n) => n.id === nodeId);
+    const node = this.nodes.find((n2) => n2.id === nodeId);
     if (!node) return null;
     if (node.type === "shape") {
       return this.getShapeHandlePosition(node, handleId);
@@ -595,8 +1075,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
    * Determine the best target handle for a shape node based on connection direction
    */
   determineBestTargetHandle(sourceNodeId, targetNodeId) {
-    const sourceNode = this.nodes.find((n) => n.id === sourceNodeId);
-    const targetNode = this.nodes.find((n) => n.id === targetNodeId);
+    const sourceNode = this.nodes.find((n2) => n2.id === sourceNodeId);
+    const targetNode = this.nodes.find((n2) => n2.id === targetNodeId);
     if (!sourceNode || !targetNode) return `${targetNodeId}-target-left`;
     const sourceX = sourceNode.position.x;
     const sourceY = sourceNode.position.y;
@@ -618,8 +1098,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     }
   }
   computeLabelCanvasPosition(edge) {
-    const sourceNode = this.nodes.find((n) => n.id === edge.source);
-    const targetNode = this.nodes.find((n) => n.id === edge.target);
+    const sourceNode = this.nodes.find((n2) => n2.id === edge.source);
+    const targetNode = this.nodes.find((n2) => n2.id === edge.target);
     if (!sourceNode || !targetNode) return null;
     let sourceX, sourceY;
     let targetX, targetY;
@@ -666,7 +1146,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     return { x: labelX, y: labelY };
   }
   computeStartLabelCanvasPosition(edge) {
-    const sourceNode = this.nodes.find((n) => n.id === edge.source);
+    const sourceNode = this.nodes.find((n2) => n2.id === edge.source);
     if (!sourceNode) return null;
     let sourceX, sourceY;
     if (edge.sourceHandle) {
@@ -689,7 +1169,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     return { x: sourceX + 12, y: sourceY - 10 };
   }
   computeEndLabelCanvasPosition(edge) {
-    const targetNode = this.nodes.find((n) => n.id === edge.target);
+    const targetNode = this.nodes.find((n2) => n2.id === edge.target);
     if (!targetNode) return null;
     let targetX, targetY;
     if (edge.targetHandle) {
@@ -719,6 +1199,20 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
         this.viewport = state.viewport;
         this.requestUpdate();
       });
+      this.unsubscribeRenderComplete = this.instance.onRenderComplete((state) => {
+        this.dispatchEvent(new CustomEvent("flow-render-complete", {
+          bubbles: true,
+          composed: true,
+          cancelable: false,
+          detail: {
+            instance: this.instance,
+            nodes: state.nodes,
+            edges: state.edges,
+            nodeCount: state.nodes.length,
+            edgeCount: state.edges.length
+          }
+        }));
+      });
       container.addEventListener("mousemove", this.onMouseMove);
       window.addEventListener("mouseup", this.onMouseUp);
       container.addEventListener("node-select", this.onNodeSelect);
@@ -739,6 +1233,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe?.();
+    this.unsubscribeRenderComplete?.();
     this.instance.destroy();
     const container = this.renderRoot.querySelector(".flow-container");
     container?.removeEventListener("mousemove", this.onMouseMove);
@@ -782,10 +1277,13 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
           class="flow-viewport" 
           style=${styleMap_js.styleMap({ transform })}
         >
+          <div class="flow-nodes-layer">
+            ${c(this.nodes, (node) => node.id, (node) => this.renderNode(node))}
+          </div>
           <div class="flow-edges-layer">
-            ${this.edges.map((edge) => {
-      const sourceNode = this.nodes.find((n) => n.id === edge.source);
-      const targetNode = this.nodes.find((n) => n.id === edge.target);
+            ${c(this.edges, (edge) => edge.id, (edge) => {
+      const sourceNode = this.nodes.find((n2) => n2.id === edge.source);
+      const targetNode = this.nodes.find((n2) => n2.id === edge.target);
       if (!sourceNode || !targetNode) return null;
       return staticHtml_js.html`
                 <flow-edge 
@@ -797,6 +1295,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
                   .sourceNode=${sourceNode}
                   .targetNode=${targetNode}
                   .animated=${edge.animated || false}
+                  .selectable=${edge.selectable !== void 0 ? edge.selectable : true}
                   .label=${edge.label || ""}
                   .type=${edge.type || "default"}
                   .markerStart=${edge.markerStart}
@@ -808,11 +1307,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     })}
             ${this.renderPreviewEdge()}
           </div>
-          <div class="flow-nodes-layer">
-            ${this.nodes.map((node) => this.renderNode(node))}
-          </div>
           <div class="flow-labels-overlay">
-            ${this.edges.map((edge) => {
+            ${c(this.edges, (edge) => edge.id, (edge) => {
       const labelWidget = edge.data && edge.data.labelWidget;
       const labelData = edge.data && edge.data.labelData;
       const labelHtml = edge.data && edge.data.labelHtml;
@@ -828,7 +1324,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
       }
       return labelHtml ? staticHtml_js.html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>` : staticHtml_js.html`<div class="edge-label" style="${style}">${labelText}</div>`;
     })}
-            ${this.edges.map((edge) => {
+            ${c(this.edges, (edge) => edge.id, (edge) => {
       const startWidget = edge.data && edge.data.startLabelWidget;
       const startLabelData = edge.data && edge.data.startLabelData;
       const startHtml = edge.data && edge.data.startLabelHtml;
@@ -843,7 +1339,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
       }
       return startHtml ? staticHtml_js.html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>` : staticHtml_js.html`<div class="edge-label" style="${style}">${startText}</div>`;
     })}
-            ${this.edges.map((edge) => {
+            ${c(this.edges, (edge) => edge.id, (edge) => {
       const endWidget = edge.data && edge.data.endLabelWidget;
       const endLabelData = edge.data && edge.data.endLabelData;
       const endHtml = edge.data && edge.data.endLabelHtml;
@@ -870,8 +1366,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
     const rect = container.getBoundingClientRect();
     const vx = this.viewport.x;
     const vy = this.viewport.y;
-    const z = this.viewport.zoom || 1;
-    return { x: (x - rect.left - vx) / z, y: (y - rect.top - vy) / z };
+    const z2 = this.viewport.zoom || 1;
+    return { x: (x - rect.left - vx) / z2, y: (y - rect.top - vy) / z2 };
   }
   isElementNode(element) {
     if (!element) return false;
@@ -887,8 +1383,8 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
   renderPreviewEdge() {
     if (!this.connection || !this.connection.preview) return null;
     const preview = this.connection.preview;
-    const nodeFrom = this.connection.from ? this.nodes.find((n) => n.id === this.connection.from.nodeId) : null;
-    const nodeTo = this.connection.to ? this.nodes.find((n) => n.id === this.connection.to.nodeId) : null;
+    const nodeFrom = this.connection.from ? this.nodes.find((n2) => n2.id === this.connection.from.nodeId) : null;
+    const nodeTo = this.connection.to ? this.nodes.find((n2) => n2.id === this.connection.to.nodeId) : null;
     if (nodeFrom) {
       return staticHtml_js.html`
         <flow-edge
@@ -899,6 +1395,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
           .sourceNode=${{ ...nodeFrom, position: nodeFrom.position }}
           .targetNode=${{ id: "__preview__", position: { x: preview.x, y: preview.y }, width: 1, height: 1, data: {} }}
           .animated=${true}
+          .selectable=${false}
           .label=${""}
         ></flow-edge>
       `;
@@ -913,6 +1410,7 @@ exports.FlowCanvas = class FlowCanvas extends lit.LitElement {
           .targetHandle=${this.connection.to?.handleId}
           .targetNode=${{ ...nodeTo, position: nodeTo.position }}
           .animated=${true}
+          .selectable=${false}
           .label=${""}
         ></flow-edge>
       `;
@@ -956,6 +1454,7 @@ exports.FlowCanvas.styles = lit.css`
       width: 100%;
       height: 100%;
       pointer-events: none;
+      z-index: 1;
     }
 
     .flow-edges-layer {
@@ -964,7 +1463,8 @@ exports.FlowCanvas.styles = lit.css`
       left: 0;
       width: 100%;
       height: 100%;
-       pointer-events: none;
+      pointer-events: none;
+      z-index: 0;
     }
 
     .flow-labels-overlay {
@@ -1022,8 +1522,8 @@ var __defProp$7 = Object.defineProperty;
 var __getOwnPropDesc$8 = Object.getOwnPropertyDescriptor;
 var __decorateClass$9 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$8(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$7(target, key, result);
   return result;
@@ -1040,24 +1540,24 @@ exports.NodeResizer = class NodeResizer extends lit.LitElement {
     this.isResizing = false;
     this.resizeStart = { x: 0, y: 0, width: 0, height: 0 };
     this.resizeHandle = "";
-    this.handleMouseDown = (e) => {
-      const target = e.target;
+    this.handleMouseDown = (e2) => {
+      const target = e2.target;
       let isResizeHandle = target.classList.contains("resize-handle");
       if (!isResizeHandle && target === this) {
-        const path = e.composedPath();
+        const path = e2.composedPath();
         isResizeHandle = path.some(
           (el) => el instanceof HTMLElement && el.classList.contains("resize-handle")
         );
       }
       if (!isResizeHandle) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+      e2.preventDefault();
+      e2.stopPropagation();
+      e2.stopImmediatePropagation();
       this.isResizing = true;
       const parentElement = this.getRootNode().host;
       this.resizeStart = {
-        x: e.clientX,
-        y: e.clientY,
+        x: e2.clientX,
+        y: e2.clientY,
         width: parentElement?.offsetWidth || 0,
         height: parentElement?.offsetHeight || 0
       };
@@ -1065,7 +1565,7 @@ exports.NodeResizer = class NodeResizer extends lit.LitElement {
       if (target.classList.contains("resize-handle")) {
         resizeHandleEl = target;
       } else if (target === this) {
-        const path = e.composedPath();
+        const path = e2.composedPath();
         resizeHandleEl = path.find(
           (el) => el instanceof HTMLElement && el.classList.contains("resize-handle")
         ) || null;
@@ -1085,12 +1585,12 @@ exports.NodeResizer = class NodeResizer extends lit.LitElement {
         composed: true
       }));
     };
-    this.handleMouseMove = (e) => {
+    this.handleMouseMove = (e2) => {
       if (!this.isResizing) return;
       const parentElement = this.getRootNode().host;
       if (!parentElement) return;
-      const deltaX = e.clientX - this.resizeStart.x;
-      const deltaY = e.clientY - this.resizeStart.y;
+      const deltaX = e2.clientX - this.resizeStart.x;
+      const deltaY = e2.clientY - this.resizeStart.y;
       let newWidth = this.resizeStart.width;
       let newHeight = this.resizeStart.height;
       switch (this.resizeHandle) {
@@ -1326,8 +1826,8 @@ var __defProp$6 = Object.defineProperty;
 var __getOwnPropDesc$7 = Object.getOwnPropertyDescriptor;
 var __decorateClass$8 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$7(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$6(target, key, result);
   return result;
@@ -1346,8 +1846,8 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
     this.dragStart = { x: 0, y: 0 };
     this.nodeStart = { x: 0, y: 0 };
     this.lastMeasured = null;
-    this.handleWheel = (e) => {
-      const path = e.composedPath();
+    this.handleWheel = (e2) => {
+      const path = e2.composedPath();
       let scrollableEl = null;
       for (const element of path) {
         if (element instanceof Element) {
@@ -1356,15 +1856,15 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
         }
       }
       if (scrollableEl) {
-        const canScrollVertically = e.deltaY < 0 && scrollableEl.scrollTop > 0 || e.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
-        const canScrollHorizontally = e.deltaX < 0 && scrollableEl.scrollLeft > 0 || e.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
+        const canScrollVertically = e2.deltaY < 0 && scrollableEl.scrollTop > 0 || e2.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
+        const canScrollHorizontally = e2.deltaX < 0 && scrollableEl.scrollLeft > 0 || e2.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
         if (canScrollVertically || canScrollHorizontally) {
-          e.stopPropagation();
+          e2.stopPropagation();
         }
       }
     };
-    this.handleClick = (e) => {
-      e.stopPropagation();
+    this.handleClick = (e2) => {
+      e2.stopPropagation();
       if (!this.isDragging && this.instance) {
         const newSelected = !this.selected;
         this.instance.updateNode(this.id, { selected: newSelected });
@@ -1384,8 +1884,8 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
         }));
       }
     };
-    this.handleResize = (e) => {
-      const { width, height } = e.detail;
+    this.handleResize = (e2) => {
+      const { width, height } = e2.detail;
       if (this.instance) {
         this.instance.updateNode(this.id, {
           width,
@@ -1394,8 +1894,8 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
         });
       }
     };
-    this.handleResizeEnd = (e) => {
-      const { width, height } = e.detail;
+    this.handleResizeEnd = (e2) => {
+      const { width, height } = e2.detail;
       if (this.instance) {
         this.instance.updateNode(this.id, {
           width,
@@ -1413,24 +1913,24 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
         composed: true
       }));
     };
-    this.handleMouseDown = (e) => {
-      if (!this.draggable || e.button !== 0) return;
-      const target = e.target;
+    this.handleMouseDown = (e2) => {
+      if (!this.draggable || e2.button !== 0) return;
+      const target = e2.target;
       const isFromResizeHandle = target.classList.contains("resize-handle") || target.tagName === "NODE-RESIZER" || target.closest("node-resizer") !== null;
       if (isFromResizeHandle) {
         return;
       }
-      e.preventDefault();
-      e.stopPropagation();
+      e2.preventDefault();
+      e2.stopPropagation();
       this.isDragging = false;
-      this.dragStart = { x: e.clientX, y: e.clientY };
+      this.dragStart = { x: e2.clientX, y: e2.clientY };
       this.nodeStart = { ...this.position };
       document.addEventListener("mousemove", this.handleMouseMove);
       document.addEventListener("mouseup", this.handleMouseUp);
     };
-    this.handleMouseMove = (e) => {
-      const dx = e.clientX - this.dragStart.x;
-      const dy = e.clientY - this.dragStart.y;
+    this.handleMouseMove = (e2) => {
+      const dx = e2.clientX - this.dragStart.x;
+      const dy = e2.clientY - this.dragStart.y;
       if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
         this.isDragging = true;
         this.dragging = true;
@@ -1469,6 +1969,9 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
       this.addEventListener("resize-end", this.handleResizeEnd);
     }
     this.updateMeasuredSize();
+    if (!this.hasAttribute("data-measured")) {
+      this.setAttribute("data-measured", "");
+    }
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -1555,9 +2058,9 @@ exports.FlowNode = class FlowNode extends lit.LitElement {
     }
   }
   onHandleMouseDown(type) {
-    return (e) => {
-      e.stopPropagation();
-      e.preventDefault();
+    return (e2) => {
+      e2.stopPropagation();
+      e2.preventDefault();
       this.dispatchEvent(new CustomEvent("handle-start", {
         detail: { nodeId: this.id, type },
         bubbles: true,
@@ -1580,6 +2083,13 @@ exports.FlowNode.styles = lit.css`
       transform-origin: 0 0;
       will-change: transform;
       pointer-events: auto;
+      /* Hidden until first measured + positioned, so the node never paints
+         at its fallback size/origin before snapping into place. */
+      visibility: hidden;
+    }
+
+    :host([data-measured]) {
+      visibility: visible;
     }
 
     :host([dragging]) {
@@ -1657,8 +2167,8 @@ var __defProp$5 = Object.defineProperty;
 var __getOwnPropDesc$6 = Object.getOwnPropertyDescriptor;
 var __decorateClass$7 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$6(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$5(target, key, result);
   return result;
@@ -1671,16 +2181,29 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
     this.target = "";
     this.animated = false;
     this.selected = false;
+    this.selectable = true;
     this.label = "";
     this.type = "default";
     this.markerHandleHalf = 5;
+    this.hovering = false;
+    this._cachedSource = null;
+    this._cachedTarget = null;
+    this._handleRafId = null;
+    this._lastPositionKey = "";
+    this.handlePointerEnter = (e2) => {
+      e2.stopPropagation();
+      this.emitHover(true);
+    };
+    this.handlePointerLeave = (e2) => {
+      e2.stopPropagation();
+      this.emitHover(false);
+    };
   }
-  // half of node handle diameter (10px)
   /**
    * Convert style object to CSS string
    */
   convertStyleObjToString(styleObj) {
-    return Object.entries(styleObj).filter(([_, value]) => value !== void 0 && value !== null).map(([key, value]) => {
+    return Object.entries(styleObj).filter(([_2, value]) => value !== void 0 && value !== null).map(([key, value]) => {
       const kebabKey = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
       return `${kebabKey}:${value}`;
     }).join(";");
@@ -1735,12 +2258,12 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
    * Simple hash function for generating unique IDs
    */
   hashString(input) {
-    let h = 0;
-    for (let i = 0; i < input.length; i++) {
-      h = (h << 5) - h + input.charCodeAt(i);
-      h |= 0;
+    let h2 = 0;
+    for (let i2 = 0; i2 < input.length; i2++) {
+      h2 = (h2 << 5) - h2 + input.charCodeAt(i2);
+      h2 |= 0;
     }
-    return Math.abs(h).toString(36);
+    return Math.abs(h2).toString(36);
   }
   /**
    * Get path based on edge type
@@ -1902,15 +2425,124 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
       position: system.Position.Left
     };
   }
+  /**
+   * Node-only source position (no DOM reads). Use during render when using handles.
+   */
+  getSourcePositionNodeOnly() {
+    const sourceWidth = this.sourceNode.measured?.width || this.sourceNode.width || 150;
+    const sourceHeight = this.sourceNode.measured?.height || this.sourceNode.height || 50;
+    return {
+      x: this.sourceNode.position.x + sourceWidth,
+      y: this.sourceNode.position.y + sourceHeight / 2,
+      position: system.Position.Right
+    };
+  }
+  /**
+   * Node-only target position (no DOM reads). Use during render when using handles.
+   */
+  getTargetPositionNodeOnly() {
+    const targetHeight = this.targetNode.measured?.height || this.targetNode.height || 50;
+    return {
+      x: this.targetNode.position.x,
+      y: this.targetNode.position.y + targetHeight / 2,
+      position: system.Position.Left
+    };
+  }
+  /**
+   * Resolve source/target for render. Uses node-only positions when handles are
+   * used (avoids getBoundingClientRect during render). Cached handle positions
+   * are applied after rAF in updated().
+   */
+  getPositionsForRender() {
+    const useHandles = !!(this.sourceHandle || this.targetHandle);
+    if (useHandles) {
+      const source = this._cachedSource ?? this.getSourcePositionNodeOnly();
+      const target = this._cachedTarget ?? this.getTargetPositionNodeOnly();
+      return { source, target };
+    }
+    return {
+      source: this.getSourcePosition(),
+      target: this.getTargetPosition()
+    };
+  }
+  getPositionCacheKey() {
+    const s2 = this.sourceNode;
+    const t2 = this.targetNode;
+    if (!s2 || !t2) return "";
+    return [
+      this.id,
+      this.sourceHandle,
+      this.targetHandle,
+      s2.position.x,
+      s2.position.y,
+      t2.position.x,
+      t2.position.y,
+      // Include measured size so cached handle positions refresh when a node
+      // is (re)measured (e.g. content grows), not just when it moves.
+      s2.measured?.width,
+      s2.measured?.height,
+      t2.measured?.width,
+      t2.measured?.height
+    ].join("|");
+  }
+  /** True for the live connection-preview edge, which must always render. */
+  get isPreview() {
+    return this.id === "preview";
+  }
+  /**
+   * An endpoint is "known" once we have a real size for it — either a measured
+   * size or an explicit width. Until then the edge would have to guess (150x50)
+   * and visibly snap when the real size arrives, so we hold off rendering.
+   */
+  endpointKnown(node) {
+    if (!node) return false;
+    if (node.type === "shape" || node.data?.size) return true;
+    return node.measured?.width != null || typeof node.width === "number";
+  }
+  updated(_changed) {
+    super.updated?.(_changed);
+    if (!this.sourceNode || !this.targetNode) return;
+    const useHandles = !!(this.sourceHandle || this.targetHandle);
+    if (!useHandles) return;
+    const key = this.getPositionCacheKey();
+    if (key !== this._lastPositionKey) {
+      this._lastPositionKey = key;
+      this._cachedSource = null;
+      this._cachedTarget = null;
+    }
+    if (this._cachedSource != null && this._cachedTarget != null) return;
+    if (this._handleRafId != null) return;
+    this._handleRafId = requestAnimationFrame(() => {
+      this._handleRafId = null;
+      this._cachedSource = this.getSourcePosition();
+      this._cachedTarget = this.getTargetPosition();
+      this.requestUpdate();
+    });
+  }
+  disconnectedCallback() {
+    if (this._handleRafId != null) {
+      cancelAnimationFrame(this._handleRafId);
+      this._handleRafId = null;
+    }
+    super.disconnectedCallback?.();
+  }
   render() {
     if (!this.sourceNode || !this.targetNode) {
       return lit.html``;
     }
-    const source = this.getSourcePosition();
-    const target = this.getTargetPosition();
+    if (!this.isPreview) {
+      const useHandles = !!(this.sourceHandle || this.targetHandle);
+      const endpointsKnown = this.endpointKnown(this.sourceNode) && this.endpointKnown(this.targetNode);
+      const handlesResolved = !useHandles || this._cachedSource != null && this._cachedTarget != null;
+      if (!endpointsKnown || !handlesResolved) {
+        return lit.html``;
+      }
+    }
+    const { source, target } = this.getPositionsForRender();
     const [path, labelX, labelY, offsetX, offsetY] = this.getPathForType(source, target);
     const pathClasses = [
       "edge-path",
+      this.selectable && "selectable",
       this.animated && "animated",
       this.selected && "selected"
     ].filter(Boolean).join(" ");
@@ -1938,7 +2570,9 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
             stroke-dasharray="${dashAttr}"
             marker-start="${markerStart ?? ""}"
             marker-end="${markerEnd ?? ""}"
-            @click=${this.handleClick}
+            @click=${this.selectable ? this.handleClick : void 0}
+            @pointerenter=${this.handlePointerEnter}
+            @pointerleave=${this.handlePointerLeave}
           />
           ${this.label ? lit.svg`
             <text 
@@ -1956,8 +2590,11 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
       </svg>
     `;
   }
-  handleClick(e) {
-    e.stopPropagation();
+  handleClick(e2) {
+    e2.stopPropagation();
+    if (!this.selectable) {
+      return;
+    }
     const newSelected = !this.selected;
     this.selected = newSelected;
     this.dispatchEvent(new CustomEvent("edge-select", {
@@ -1973,6 +2610,33 @@ exports.FlowEdge = class FlowEdge extends lit.LitElement {
           label: this.label,
           animated: this.animated,
           selected: newSelected
+        }
+      },
+      bubbles: true,
+      composed: true
+    }));
+  }
+  emitHover(hovered) {
+    if (this.hovering === hovered) return;
+    this.hovering = hovered;
+    this.dispatchEvent(new CustomEvent("edge-hover", {
+      detail: {
+        edgeId: this.id,
+        hovered,
+        edge: {
+          id: this.id,
+          source: this.source,
+          target: this.target,
+          sourceHandle: this.sourceHandle,
+          targetHandle: this.targetHandle,
+          label: this.label,
+          animated: this.animated,
+          selected: this.selected,
+          type: this.type,
+          markerStart: this.markerStart,
+          markerEnd: this.markerEnd,
+          offset: this.offset,
+          pathStyle: this.pathStyle
         }
       },
       bubbles: true,
@@ -2002,11 +2666,18 @@ exports.FlowEdge.styles = lit.css`
       fill: none;
       stroke: var(--flow-edge-color, #b1b1b7);
       stroke-width: 3;
-      cursor: pointer;
       pointer-events: stroke;
     }
 
-    .edge-path:hover {
+    .edge-path.selectable {
+      cursor: pointer;
+    }
+
+    .edge-path:not(.selectable) {
+      cursor: default;
+    }
+
+    .edge-path.selectable:hover {
       stroke: var(--flow-edge-selected-color, #1a73e8);
     }
 
@@ -2060,6 +2731,9 @@ __decorateClass$7([
   decorators_js.property({ type: Boolean })
 ], exports.FlowEdge.prototype, "selected", 2);
 __decorateClass$7([
+  decorators_js.property({ type: Boolean })
+], exports.FlowEdge.prototype, "selectable", 2);
+__decorateClass$7([
   decorators_js.property({ type: String })
 ], exports.FlowEdge.prototype, "label", 2);
 __decorateClass$7([
@@ -2084,8 +2758,8 @@ var __defProp$4 = Object.defineProperty;
 var __getOwnPropDesc$5 = Object.getOwnPropertyDescriptor;
 var __decorateClass$6 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$5(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$4(target, key, result);
   return result;
@@ -2156,8 +2830,8 @@ var __defProp$3 = Object.defineProperty;
 var __getOwnPropDesc$4 = Object.getOwnPropertyDescriptor;
 var __decorateClass$5 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$4(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$3(target, key, result);
   return result;
@@ -2218,8 +2892,8 @@ var __defProp$2 = Object.defineProperty;
 var __getOwnPropDesc$3 = Object.getOwnPropertyDescriptor;
 var __decorateClass$4 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$3(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$2(target, key, result);
   return result;
@@ -2297,8 +2971,8 @@ var __getProtoOf = Object.getPrototypeOf;
 var __reflectGet = Reflect.get;
 var __decorateClass$3 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$2(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = decorator(result) || result;
   return result;
 };
@@ -2311,14 +2985,15 @@ exports.ERDTableNode = class ERDTableNode extends exports.FlowNode {
   firstUpdated() {
     const data = this.data;
     const w = data?.size?.width;
-    const h = data?.size?.height;
-    if (typeof w === "number" && w > 0 || typeof h === "number" && h > 0) {
+    const h2 = data?.size?.height;
+    if (typeof w === "number" && w > 0 || typeof h2 === "number" && h2 > 0) {
       if (typeof w === "number" && w > 0) this.style.width = `${w}px`;
-      if (typeof h === "number" && h > 0) this.style.height = `${h}px`;
+      if (typeof h2 === "number" && h2 > 0) this.style.minHeight = `${h2}px`;
       if (this.instance) {
         this.instance.updateNode(this.id, {
           width: typeof w === "number" && w > 0 ? w : this.width,
-          height: typeof h === "number" && h > 0 ? h : this.height
+          // Store an initial height hint, but allow the DOM to grow beyond it.
+          height: typeof h2 === "number" && h2 > 0 ? h2 : this.height
         });
       }
       this.appliedInitialSize = true;
@@ -2329,9 +3004,9 @@ exports.ERDTableNode = class ERDTableNode extends exports.FlowNode {
     super.updated(changedProperties);
   }
   onFieldHandleMouseDown(fieldName, side) {
-    return (e) => {
-      e.stopPropagation();
-      e.preventDefault();
+    return (e2) => {
+      e2.stopPropagation();
+      e2.preventDefault();
       const handleId = `${this.id}-${fieldName}-${side}`;
       this.dispatchEvent(new CustomEvent("handle-start", {
         detail: {
@@ -2643,8 +3318,8 @@ var __defProp$1 = Object.defineProperty;
 var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
 var __decorateClass$2 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$1(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = (kind ? decorator(target, key, result) : decorator(result)) || result;
   if (kind && result) __defProp$1(target, key, result);
   return result;
@@ -2662,8 +3337,8 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
     this.isDragging = false;
     this.dragStart = { x: 0, y: 0 };
     this.nodeStart = { x: 0, y: 0 };
-    this.handleClick = (e) => {
-      e.stopPropagation();
+    this.handleClick = (e2) => {
+      e2.stopPropagation();
       if (!this.isDragging && this.instance) {
         const newSelected = !this.selected;
         this.instance.updateNode(this.id, { selected: newSelected });
@@ -2683,8 +3358,8 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
         }));
       }
     };
-    this.handleResize = (e) => {
-      const { width, height } = e.detail;
+    this.handleResize = (e2) => {
+      const { width, height } = e2.detail;
       if (this.data && this.instance) {
         const updatedData = {
           ...this.data,
@@ -2698,8 +3373,8 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
         });
       }
     };
-    this.handleResizeEnd = (e) => {
-      const { width, height } = e.detail;
+    this.handleResizeEnd = (e2) => {
+      const { width, height } = e2.detail;
       if (this.data && this.instance) {
         const updatedData = {
           ...this.data,
@@ -2722,24 +3397,24 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
         composed: true
       }));
     };
-    this.handleMouseDown = (e) => {
-      if (!this.draggable || e.button !== 0) return;
-      const target = e.target;
+    this.handleMouseDown = (e2) => {
+      if (!this.draggable || e2.button !== 0) return;
+      const target = e2.target;
       const isFromResizeHandle = target.classList.contains("resize-handle") || target.tagName === "NODE-RESIZER" || target.closest("node-resizer") !== null;
       if (isFromResizeHandle) {
         return;
       }
-      e.preventDefault();
-      e.stopPropagation();
+      e2.preventDefault();
+      e2.stopPropagation();
       this.isDragging = false;
-      this.dragStart = { x: e.clientX, y: e.clientY };
+      this.dragStart = { x: e2.clientX, y: e2.clientY };
       this.nodeStart = { ...this.position };
       document.addEventListener("mousemove", this.handleMouseMove);
       document.addEventListener("mouseup", this.handleMouseUp);
     };
-    this.handleMouseMove = (e) => {
-      const dx = e.clientX - this.dragStart.x;
-      const dy = e.clientY - this.dragStart.y;
+    this.handleMouseMove = (e2) => {
+      const dx = e2.clientX - this.dragStart.x;
+      const dy = e2.clientY - this.dragStart.y;
       if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
         this.isDragging = true;
         if (this.instance) {
@@ -2762,10 +3437,10 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
       this.isDragging = false;
       this.cleanup();
     };
-    this.handleHandleStart = (e) => {
-      e.stopPropagation();
+    this.handleHandleStart = (e2) => {
+      e2.stopPropagation();
       this.isDragging = false;
-      const handle = e.target;
+      const handle = e2.target;
       const handleId = handle.dataset.handleId;
       const handleType = handle.dataset.handleType;
       if (handleType && handleId) {
@@ -2882,6 +3557,11 @@ exports.ShapeNode = class ShapeNode extends lit.LitElement {
     }
     this.cleanup();
   }
+  firstUpdated() {
+    if (!this.hasAttribute("data-measured")) {
+      this.setAttribute("data-measured", "");
+    }
+  }
   cleanup() {
     document.removeEventListener("mousemove", this.handleMouseMove);
     document.removeEventListener("mouseup", this.handleMouseUp);
@@ -2971,6 +3651,12 @@ exports.ShapeNode.styles = lit.css`
       transform-origin: 0 0;
       will-change: transform;
       transform: translate(var(--position-x, 0px), var(--position-y, 0px));
+      /* Hidden until the first render has applied position + size. */
+      visibility: hidden;
+    }
+
+    :host([data-measured]) {
+      visibility: visible;
     }
 
     .shape-node {
@@ -3150,8 +3836,8 @@ exports.ShapeNode = __decorateClass$2([
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __decorateClass$1 = (decorators, target, key, kind) => {
   var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = decorator(result) || result;
   return result;
 };
@@ -3243,8 +3929,8 @@ exports.BaseNodeFooter = __decorateClass$1([
 var __defProp = Object.defineProperty;
 var __decorateClass = (decorators, target, key, kind) => {
   var result = void 0;
-  for (var i = decorators.length - 1, decorator; i >= 0; i--)
-    if (decorator = decorators[i])
+  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
+    if (decorator = decorators[i2])
       result = decorator(target, key, result) || result;
   if (result) __defProp(target, key, result);
   return result;
@@ -3277,9 +3963,11 @@ const NodeMixin = (superClass) => {
       this.isResizing = false;
       this.resizeStart = { x: 0, y: 0, width: 0, height: 0 };
       this.resizeHandle = "";
+      this.lastMeasured = null;
+      this.resizeObserver = null;
       this.dragHandleElement = null;
-      this.handleClick = (e) => {
-        e.stopPropagation();
+      this.handleClick = (e2) => {
+        e2.stopPropagation();
         if (!this.isDragging) {
           const newSelected = !this.selected;
           this.selected = newSelected;
@@ -3302,8 +3990,8 @@ const NodeMixin = (superClass) => {
           }));
         }
       };
-      this.handleWheel = (e) => {
-        const path = e.composedPath();
+      this.handleWheel = (e2) => {
+        const path = e2.composedPath();
         let scrollableEl = null;
         for (const element of path) {
           if (element instanceof Element) {
@@ -3312,37 +4000,37 @@ const NodeMixin = (superClass) => {
           }
         }
         if (scrollableEl) {
-          const canScrollVertically = e.deltaY < 0 && scrollableEl.scrollTop > 0 || e.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
-          const canScrollHorizontally = e.deltaX < 0 && scrollableEl.scrollLeft > 0 || e.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
+          const canScrollVertically = e2.deltaY < 0 && scrollableEl.scrollTop > 0 || e2.deltaY > 0 && scrollableEl.scrollTop < scrollableEl.scrollHeight - scrollableEl.clientHeight;
+          const canScrollHorizontally = e2.deltaX < 0 && scrollableEl.scrollLeft > 0 || e2.deltaX > 0 && scrollableEl.scrollLeft < scrollableEl.scrollWidth - scrollableEl.clientWidth;
           if (canScrollVertically || canScrollHorizontally) {
-            e.stopPropagation();
+            e2.stopPropagation();
           }
         }
       };
-      this.handleMouseDown = (e) => {
-        if (e.button !== 0) return;
-        const target = e.target;
+      this.handleMouseDown = (e2) => {
+        if (e2.button !== 0) return;
+        const target = e2.target;
         const isFromResizeHandle = target.classList.contains("resize-handle") || target.closest(".resize-handle") !== null;
         if (isFromResizeHandle) {
-          this.handleResizeStart(e);
+          this.handleResizeStart(e2);
           return;
         }
         if (!this.draggable) return;
-        e.preventDefault();
-        e.stopPropagation();
+        e2.preventDefault();
+        e2.stopPropagation();
         this.isDragging = false;
-        this.dragStart = { x: e.clientX, y: e.clientY };
+        this.dragStart = { x: e2.clientX, y: e2.clientY };
         this.nodeStart = { ...this.position };
         document.addEventListener("mousemove", this.handleMouseMove);
         document.addEventListener("mouseup", this.handleMouseUp);
       };
-      this.handleMouseMove = (e) => {
+      this.handleMouseMove = (e2) => {
         if (this.isResizing) {
-          this.handleResizeMove(e);
+          this.handleResizeMove(e2);
           return;
         }
-        const dx = e.clientX - this.dragStart.x;
-        const dy = e.clientY - this.dragStart.y;
+        const dx = e2.clientX - this.dragStart.x;
+        const dy = e2.clientY - this.dragStart.y;
         if (!this.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
           this.isDragging = true;
           this.dragging = true;
@@ -3379,10 +4067,10 @@ const NodeMixin = (superClass) => {
           this.isResizing = false;
         }, 50);
       };
-      this.handleResizeStart = (e, handle) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
+      this.handleResizeStart = (e2, handle) => {
+        e2.preventDefault();
+        e2.stopPropagation();
+        e2.stopImmediatePropagation();
         this.isResizing = true;
         const rect = this.getBoundingClientRect();
         const computedStyle = getComputedStyle(this);
@@ -3395,15 +4083,15 @@ const NodeMixin = (superClass) => {
           height = rect.height;
         }
         this.resizeStart = {
-          x: e.clientX,
-          y: e.clientY,
+          x: e2.clientX,
+          y: e2.clientY,
           width,
           height
         };
         if (handle) {
           this.resizeHandle = handle;
         } else {
-          let target = e.target;
+          let target = e2.target;
           if (!target.classList.contains("resize-handle")) {
             const resizeHandle = target.closest(".resize-handle");
             if (resizeHandle) {
@@ -3424,10 +4112,10 @@ const NodeMixin = (superClass) => {
           composed: true
         }));
       };
-      this.handleResizeMove = (e) => {
+      this.handleResizeMove = (e2) => {
         if (!this.isResizing) return;
-        const deltaX = e.clientX - this.resizeStart.x;
-        const deltaY = e.clientY - this.resizeStart.y;
+        const deltaX = e2.clientX - this.resizeStart.x;
+        const deltaY = e2.clientY - this.resizeStart.y;
         let newWidth = this.resizeStart.width;
         let newHeight = this.resizeStart.height;
         switch (this.resizeHandle) {
@@ -3508,8 +4196,8 @@ const NodeMixin = (superClass) => {
           });
         }
       };
-      this.handleGlobalClick = (e) => {
-        const target = e.target;
+      this.handleGlobalClick = (e2) => {
+        const target = e2.target;
         const isNodeClick = target.closest(this.tagName.toLowerCase()) !== null;
         if (!isNodeClick) {
           if (this.selected) {
@@ -3535,11 +4223,11 @@ const NodeMixin = (superClass) => {
         }
       };
       this.handleResizeHandleClick = (handle) => {
-        return (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          this.handleResizeStart(e, handle);
+        return (e2) => {
+          e2.preventDefault();
+          e2.stopPropagation();
+          e2.stopImmediatePropagation();
+          this.handleResizeStart(e2, handle);
         };
       };
     }
@@ -3557,6 +4245,13 @@ const NodeMixin = (superClass) => {
         background: var(--node-background, white);
         box-shadow: var(--node-shadow, 0 1px 3px rgba(0, 0, 0, 0.1));
         transition: var(--node-transition, box-shadow 0.2s);
+        /* Hidden until first measured + positioned, so the node never paints
+           at its fallback size/origin before snapping into place. */
+        visibility: hidden;
+      }
+
+      :host([data-measured]) {
+        visibility: visible;
       }
 
       /* When drag_handle_selector is set, default cursor is normal (not grab) */
@@ -3679,6 +4374,12 @@ const NodeMixin = (superClass) => {
       this.addEventListener("click", this.handleClick);
       this.addEventListener("wheel", this.handleWheel, { passive: false });
       document.addEventListener("click", this.handleGlobalClick);
+      if (!this.resizeObserver && typeof ResizeObserver !== "undefined") {
+        this.resizeObserver = new ResizeObserver(() => {
+          if (!this.isResizing) this.updateMeasuredSize();
+        });
+        this.resizeObserver.observe(this);
+      }
     }
     disconnectedCallback() {
       super.disconnectedCallback();
@@ -3687,6 +4388,8 @@ const NodeMixin = (superClass) => {
       this.removeEventListener("wheel", this.handleWheel);
       document.removeEventListener("click", this.handleGlobalClick);
       this.removeDragHandleListener();
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = null;
       this.cleanup();
     }
     /**
@@ -3759,7 +4462,15 @@ const NodeMixin = (superClass) => {
       Promise.resolve().then(() => {
         this.attachDragHandleListener();
         this.adjustHeightToContent();
+        this.updateMeasuredSize();
+        this.reveal();
       });
+    }
+    /** Make the node visible once it has been measured and positioned. */
+    reveal() {
+      if (!this.hasAttribute("data-measured")) {
+        this.setAttribute("data-measured", "");
+      }
     }
     updated(changedProperties) {
       super.updated(changedProperties);
@@ -3798,6 +4509,20 @@ const NodeMixin = (superClass) => {
           this.removeAttribute("data-drag-handle-selector");
         }
       }
+      if (changedProperties.has("data") && !this.isResizing) {
+        Promise.resolve().then(() => this.updateMeasuredSize());
+      }
+    }
+    updateMeasuredSize(force = false) {
+      if (!this.instance || !this.id) return;
+      const rect = this.getBoundingClientRect();
+      const zoom = this.instance.getViewport?.().zoom || 1;
+      const width = rect.width / zoom;
+      const height = rect.height / zoom;
+      const changed = !this.lastMeasured || Math.abs(this.lastMeasured.width - width) > 0.5 || Math.abs(this.lastMeasured.height - height) > 0.5;
+      if (!force && !changed) return;
+      this.lastMeasured = { width, height };
+      this.instance.updateNode(this.id, { measured: { width, height } });
     }
     appendResizerToDOM() {
       this.removeExistingResizer();
@@ -3920,18 +4645,10 @@ const NodeMixin = (superClass) => {
     async notifyHandlesUpdated(options) {
       const { handleIds, updateDimensions = true } = options || {};
       await this.updateComplete;
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (this.instance && this.id) {
-        if (updateDimensions) {
-          const rect = this.getBoundingClientRect();
-          const currentWidth = rect.width;
-          const currentHeight = rect.height;
-          this.instance.updateNode(this.id, {
-            width: currentWidth,
-            height: currentHeight,
-            measured: { width: currentWidth, height: currentHeight }
-          });
-        }
+        if (updateDimensions) this.updateMeasuredSize(true);
         this.dispatchEvent(new CustomEvent("node-handles-updated", {
           detail: {
             nodeId: this.id,

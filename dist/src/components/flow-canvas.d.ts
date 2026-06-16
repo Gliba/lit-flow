@@ -36,6 +36,7 @@ export declare class FlowCanvas extends LitElement {
     private computeEndLabelCanvasPosition;
     instance: FlowInstance;
     private unsubscribe?;
+    private unsubscribeRenderComplete?;
     constructor();
     firstUpdated(): void;
     disconnectedCallback(): void;

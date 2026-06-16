@@ -37,6 +37,7 @@ export declare class ShapeNode extends LitElement {
     private renderGradients;
     connectedCallback(): void;
     disconnectedCallback(): void;
+    firstUpdated(): void;
     private cleanup;
     /**
      * Handle click events

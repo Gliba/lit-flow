@@ -94,6 +94,7 @@ export declare type Edge<EdgeData extends Record<string, unknown> = Record<strin
     type?: EdgeType;
     offset?: number;
     pathStyle?: Partial<CSSStyleDeclaration> | string;
+    selectable?: boolean;
 };
 
 export declare type EdgeChange = {
@@ -107,6 +108,15 @@ export declare type EdgeChange = {
     type: 'add';
     item: Edge;
 };
+
+export declare interface EdgeHoverEvent extends CustomEvent<EdgeHoverEventDetail> {
+}
+
+export declare interface EdgeHoverEventDetail {
+    edgeId: string;
+    hovered: boolean;
+    edge: Edge;
+}
 
 export declare type EdgeType = 'default' | 'straight' | 'step' | 'smoothstep' | 'simplebezier';
 
@@ -178,6 +188,7 @@ export declare class FlowCanvas extends LitElement {
     private computeEndLabelCanvasPosition;
     instance: FlowInstance;
     private unsubscribe?;
+    private unsubscribeRenderComplete?;
     constructor();
     firstUpdated(): void;
     disconnectedCallback(): void;
@@ -219,6 +230,7 @@ export declare class FlowEdge extends LitElement {
     targetNode?: Node_2;
     animated: boolean;
     selected: boolean;
+    selectable: boolean;
     label: string;
     type: EdgeType;
     markerStart?: MarkerSpec | string;
@@ -226,6 +238,12 @@ export declare class FlowEdge extends LitElement {
     offset?: number;
     pathStyle?: Partial<CSSStyleDeclaration> | string;
     private markerHandleHalf;
+    private hovering;
+    /** Cached handle positions (from rAF); avoids DOM reads during render. */
+    private _cachedSource;
+    private _cachedTarget;
+    private _handleRafId;
+    private _lastPositionKey;
     /**
      * Convert style object to CSS string
      */
@@ -270,8 +288,36 @@ export declare class FlowEdge extends LitElement {
      * Get the target position (handle or node edge)
      */
     private getTargetPosition;
+    /**
+     * Node-only source position (no DOM reads). Use during render when using handles.
+     */
+    private getSourcePositionNodeOnly;
+    /**
+     * Node-only target position (no DOM reads). Use during render when using handles.
+     */
+    private getTargetPositionNodeOnly;
+    /**
+     * Resolve source/target for render. Uses node-only positions when handles are
+     * used (avoids getBoundingClientRect during render). Cached handle positions
+     * are applied after rAF in updated().
+     */
+    private getPositionsForRender;
+    private getPositionCacheKey;
+    /** True for the live connection-preview edge, which must always render. */
+    private get isPreview();
+    /**
+     * An endpoint is "known" once we have a real size for it — either a measured
+     * size or an explicit width. Until then the edge would have to guess (150x50)
+     * and visibly snap when the real size arrives, so we hold off rendering.
+     */
+    private endpointKnown;
+    updated(_changed: Map<string, unknown>): void;
+    disconnectedCallback(): void;
     render(): TemplateResult<1>;
     private handleClick;
+    private emitHover;
+    private handlePointerEnter;
+    private handlePointerLeave;
 }
 
 export declare class FlowInstance {
@@ -280,7 +326,13 @@ export declare class FlowInstance {
     private subscribers;
     private panZoomInstance;
     private options;
-    private pendingNodes;
+    private notifyScheduled;
+    private pendingFit;
+    private fitFallbackTimer;
+    private didInitFit;
+    private renderToken;
+    private settledToken;
+    private renderCompleteCallbacks;
     private panZoomUpdateOptions;
     constructor(options?: FlowOptions);
     mount(container: HTMLElement): void;
@@ -298,31 +350,69 @@ export declare class FlowInstance {
     setEdges(edges: Edge[]): void;
     updateNode(id: string, updates: Partial<Node_2>): void;
     updateEdge(id: string, updates: Partial<Edge>): void;
-    addNode(node: Node_2): void;
+    /**
+     * Add a node to the flow.
+     *
+     * If `position` is omitted, it will be auto-calculated based on the current
+     * viewport and container size, trying to avoid overlapping existing nodes.
+     */
+    addNode(node: Omit<Node_2, 'position'> & {
+        position?: XYPosition;
+    }): void;
     removeNode(id: string): void;
     addEdge(edge: Edge): void;
     removeEdge(id: string): void;
     subscribe(callback: (state: FlowState) => void): () => void;
+    /**
+     * Register a callback that fires once after a batch of data (set/add/remove of
+     * nodes or edges) has finished rendering — i.e. every node has been measured
+     * and edges have been laid out at their final positions. Fires once per
+     * structural revision. Returns an unsubscribe function.
+     */
+    onRenderComplete(callback: (state: FlowState) => void): () => void;
     zoomIn(): void;
     zoomOut(): void;
-    fitView(): void;
+    /**
+     * Center and zoom the viewport so every node is visible.
+     *
+     * @param options.padding     Gap (px) to leave around the content (default 50).
+     * @param options.awaitMeasure When true, if the nodes aren't measured yet or
+     *   the container has no size, the fit is deferred and retried automatically
+     *   once measurements land — use this for fit-on-load.
+     */
+    fitView(options?: {
+        padding?: number;
+        awaitMeasure?: boolean;
+    }): void;
+    /** Effective rendered size of a node, falling back through measured → explicit → shape data → default. */
+    private getNodeSize;
+    /** True once every node has a real size and the container has been laid out. */
+    private canFitAccurately;
+    /** True once every node has a real (non-fallback) size. */
+    private areNodesMeasured;
+    /** Mark a new structural revision whose render we should wait to settle. */
+    private armRender;
+    /**
+     * Emit render-complete once the current revision's nodes are all measured.
+     * Called from the batched notify, so it sees the measurements that just
+     * landed. Defers two frames so edges resolve their handle positions and
+     * paint before we report "done".
+     */
+    private maybeEmitRenderComplete;
+    /** Run a deferred fit once nodes are measured. Called from the batched notify. */
+    private maybeRunPendingFit;
+    /**
+     * Safety net: if measurements never complete (e.g. a node errors), force the
+     * deferred fit with whatever sizes are available rather than leaving the
+     * viewport unfit.
+     */
+    private scheduleFitFallback;
+    private clearFitFallback;
+    /** Trigger the one-time fit-on-load when `fitViewOnInit` (or legacy `fitView`) is set. */
+    private maybeInitFit;
     private updateLookups;
-    /**
-     * Check if a node is fully rendered
-     */
-    private isNodeRendered;
-    /**
-     * Check if any of the required nodes are still pending
-     */
-    private hasPendingNodes;
-    /**
-     * Remove node from pending list when it's rendered
-     */
-    private markNodeAsRendered;
-    /**
-     * Retry edge rendering with delay if nodes are still pending
-     */
-    private retryEdgeRendering;
+    private getAutoNodePosition;
+    private snapPositionToGrid;
     private notifySubscribers;
 }
 
@@ -373,7 +463,10 @@ export declare class FlowNode extends LitElement {
 export declare interface FlowOptions {
     nodes?: Node_2[];
     edges?: Edge[];
+    /** @deprecated Use `fitViewOnInit`. Kept as an alias for backwards compatibility. */
     fitView?: boolean;
+    /** When true, fit the viewport to all nodes once on first load (after they're measured). Off by default. */
+    fitViewOnInit?: boolean;
     minZoom?: number;
     maxZoom?: number;
     defaultZoom?: number;
@@ -382,6 +475,7 @@ export declare interface FlowOptions {
     nodesDraggable?: boolean;
     nodesConnectable?: boolean;
     elementsSelectable?: boolean;
+    zoomOnDoubleClick?: boolean;
 }
 
 export declare interface FlowState {
@@ -622,6 +716,7 @@ export declare class ShapeNode extends LitElement {
     private renderGradients;
     connectedCallback(): void;
     disconnectedCallback(): void;
+    firstUpdated(): void;
     private cleanup;
     /**
      * Handle click events

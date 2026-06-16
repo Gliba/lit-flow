@@ -105,6 +105,13 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
         background: var(--node-background, white);
         box-shadow: var(--node-shadow, 0 1px 3px rgba(0, 0, 0, 0.1));
         transition: var(--node-transition, box-shadow 0.2s);
+        /* Hidden until first measured + positioned, so the node never paints
+           at its fallback size/origin before snapping into place. */
+        visibility: hidden;
+      }
+
+      :host([data-measured]) {
+        visibility: visible;
       }
 
       /* When drag_handle_selector is set, default cursor is normal (not grab) */
@@ -247,6 +254,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
     private isResizing = false;
     private resizeStart = { x: 0, y: 0, width: 0, height: 0 };
     private resizeHandle = '';
+    private lastMeasured: { width: number; height: number } | null = null;
+    private resizeObserver: ResizeObserver | null = null;
     
     // Drag handle element reference
     private dragHandleElement: HTMLElement | null = null;
@@ -262,6 +271,17 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       // Add global click handler for deselection
       document.addEventListener('click', this.handleGlobalClick);
       // Resizer functionality is now handled directly in the mixin
+
+      // Track content-driven size changes (e.g. table rows rendering).
+      // Important: we only update `measured` in the flow instance so we don't
+      // force a fixed width/height style on auto-sized nodes.
+      if (!this.resizeObserver && typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          // Avoid fighting the user's manual resize interaction
+          if (!this.isResizing) this.updateMeasuredSize();
+        });
+        this.resizeObserver.observe(this);
+      }
     }
 
     disconnectedCallback() {
@@ -273,6 +293,8 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       // Clean up drag handle listener
       this.removeDragHandleListener();
       // Resizer functionality is now handled directly in the mixin
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = null;
       this.cleanup();
     }
 
@@ -712,7 +734,17 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       Promise.resolve().then(() => {
         this.attachDragHandleListener();
         this.adjustHeightToContent();
+        this.updateMeasuredSize();
+        // Reveal once measured and positioned (transform is applied in updated()).
+        this.reveal();
       });
+    }
+
+    /** Make the node visible once it has been measured and positioned. */
+    private reveal() {
+      if (!this.hasAttribute('data-measured')) {
+        this.setAttribute('data-measured', '');
+      }
     }
 
     updated(changedProperties: Map<string | number | symbol, unknown>) {
@@ -764,6 +796,34 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
           this.removeAttribute('data-drag-handle-selector');
         }
       }
+
+      // If content changes (data updates), re-measure after render so edges/handles update.
+      if (changedProperties.has('data') && !this.isResizing) {
+        Promise.resolve().then(() => this.updateMeasuredSize());
+      }
+    }
+
+    private updateMeasuredSize(force: boolean = false) {
+      if (!this.instance || !this.id) return;
+
+      // The viewport is scaled via CSS transform; getBoundingClientRect includes that scale.
+      // Divide by zoom to store unscaled (canvas) dimensions, matching FlowNode behavior.
+      const rect = this.getBoundingClientRect();
+      const zoom = (this.instance.getViewport?.().zoom as number | undefined) || 1;
+      const width = rect.width / zoom;
+      const height = rect.height / zoom;
+
+      const changed =
+        !this.lastMeasured ||
+        Math.abs(this.lastMeasured.width - width) > 0.5 ||
+        Math.abs(this.lastMeasured.height - height) > 0.5;
+
+      if (!force && !changed) return;
+
+      this.lastMeasured = { width, height };
+
+      // Only update `measured` to avoid forcing explicit width/height on auto-sized nodes.
+      this.instance.updateNode(this.id, { measured: { width, height } });
     }
 
     private appendResizerToDOM() {
@@ -947,23 +1007,15 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       // Wait for any pending DOM updates
       await this.updateComplete;
       
-      // Small delay to ensure handles are fully rendered in the DOM
+      // Ensure layout is committed so handle DOM has correct rects
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      // Extra tick for cases where handles are rendered via imperative `render()`
       await new Promise(resolve => setTimeout(resolve, 0));
       
       if (this.instance && this.id) {
-        // Update node dimensions to trigger flow canvas recalculation
-        // This forces the flow canvas to recalculate handle positions
-        if (updateDimensions) {
-          const rect = this.getBoundingClientRect();
-          const currentWidth = rect.width;
-          const currentHeight = rect.height;
-          
-          this.instance.updateNode(this.id, {
-            width: currentWidth,
-            height: currentHeight,
-            measured: { width: currentWidth, height: currentHeight }
-          });
-        }
+        // Update measurements to trigger edge/handle recalculation.
+        // We prefer updating `measured` (not fixed width/height) so nodes can stay auto-sized.
+        if (updateDimensions) this.updateMeasuredSize(true);
         
         // Dispatch custom event that flow canvas can listen to
         this.dispatchEvent(new CustomEvent('node-handles-updated', {

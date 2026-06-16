@@ -167,6 +167,12 @@ let ShapeNode = class ShapeNode extends LitElement {
       transform-origin: 0 0;
       will-change: transform;
       transform: translate(var(--position-x, 0px), var(--position-y, 0px));
+      /* Hidden until the first render has applied position + size. */
+      visibility: hidden;
+    }
+
+    :host([data-measured]) {
+      visibility: visible;
     }
 
     .shape-node {
@@ -410,6 +416,12 @@ let ShapeNode = class ShapeNode extends LitElement {
             this.removeEventListener('resize-end', this.handleResizeEnd);
         }
         this.cleanup();
+    }
+    firstUpdated() {
+        // Position and size are applied synchronously in render(); reveal now.
+        if (!this.hasAttribute('data-measured')) {
+            this.setAttribute('data-measured', '');
+        }
     }
     cleanup() {
         document.removeEventListener('mousemove', this.handleMouseMove);

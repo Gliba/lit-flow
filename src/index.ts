@@ -41,6 +41,8 @@ export type {
   EdgeChange,
   ConnectionStartParams,
   ConnectionEndParams,
+  EdgeHoverEventDetail,
+  EdgeHoverEvent,
 } from './core/types';
 
 export type {

@@ -8,6 +8,8 @@ import { customElement, property } from 'lit/decorators.js';
 import { getBezierPath, getSmoothStepPath, getStraightPath, Position } from '../utils/geometry';
 import type { Node, MarkerSpec, EdgeType } from '../core/types';
 
+type PositionPoint = { x: number; y: number; position: Position };
+
 @customElement('flow-edge')
 export class FlowEdge extends LitElement {
   // Render in light DOM so marker defs in parent shadow root are addressable
@@ -38,11 +40,18 @@ export class FlowEdge extends LitElement {
       fill: none;
       stroke: var(--flow-edge-color, #b1b1b7);
       stroke-width: 3;
-      cursor: pointer;
       pointer-events: stroke;
     }
 
-    .edge-path:hover {
+    .edge-path.selectable {
+      cursor: pointer;
+    }
+
+    .edge-path:not(.selectable) {
+      cursor: default;
+    }
+
+    .edge-path.selectable:hover {
       stroke: var(--flow-edge-selected-color, #1a73e8);
     }
 
@@ -78,6 +87,7 @@ export class FlowEdge extends LitElement {
   @property({ type: Object }) targetNode?: Node;
   @property({ type: Boolean }) animated = false;
   @property({ type: Boolean }) selected = false;
+  @property({ type: Boolean }) selectable = true;
   @property({ type: String }) label = '';
   @property({ type: String }) type: EdgeType = 'default';
   @property({ type: Object }) markerStart?: MarkerSpec | string;
@@ -86,6 +96,13 @@ export class FlowEdge extends LitElement {
   @property({ type: Object }) pathStyle?: Partial<CSSStyleDeclaration> | string;
 
   private markerHandleHalf = 5; // half of node handle diameter (10px)
+  private hovering = false;
+
+  /** Cached handle positions (from rAF); avoids DOM reads during render. */
+  private _cachedSource: PositionPoint | null = null;
+  private _cachedTarget: PositionPoint | null = null;
+  private _handleRafId: number | null = null;
+  private _lastPositionKey = '';
 
   /**
    * Convert style object to CSS string
@@ -335,7 +352,7 @@ export class FlowEdge extends LitElement {
   /**
    * Get the source position (handle or node edge)
    */
-  private getSourcePosition(): { x: number; y: number; position: Position } {
+  private getSourcePosition(): PositionPoint {
     // Try to get specific handle position
     if (this.sourceHandle && this.sourceNode) {
       const handlePos = this.getHandlePosition(this.sourceNode.id, this.sourceHandle);
@@ -357,7 +374,7 @@ export class FlowEdge extends LitElement {
   /**
    * Get the target position (handle or node edge)
    */
-  private getTargetPosition(): { x: number; y: number; position: Position } {
+  private getTargetPosition(): PositionPoint {
     // Try to get specific handle position
     if (this.targetHandle && this.targetNode) {
       const handlePos = this.getHandlePosition(this.targetNode.id, this.targetHandle);
@@ -375,20 +392,149 @@ export class FlowEdge extends LitElement {
     };
   }
 
+  /**
+   * Node-only source position (no DOM reads). Use during render when using handles.
+   */
+  private getSourcePositionNodeOnly(): PositionPoint {
+    const sourceWidth = this.sourceNode!.measured?.width || this.sourceNode!.width || 150;
+    const sourceHeight = this.sourceNode!.measured?.height || this.sourceNode!.height || 50;
+    return {
+      x: this.sourceNode!.position.x + sourceWidth,
+      y: this.sourceNode!.position.y + sourceHeight / 2,
+      position: Position.Right
+    };
+  }
+
+  /**
+   * Node-only target position (no DOM reads). Use during render when using handles.
+   */
+  private getTargetPositionNodeOnly(): PositionPoint {
+    const targetHeight = this.targetNode!.measured?.height || this.targetNode!.height || 50;
+    return {
+      x: this.targetNode!.position.x,
+      y: this.targetNode!.position.y + targetHeight / 2,
+      position: Position.Left
+    };
+  }
+
+  /**
+   * Resolve source/target for render. Uses node-only positions when handles are
+   * used (avoids getBoundingClientRect during render). Cached handle positions
+   * are applied after rAF in updated().
+   */
+  private getPositionsForRender(): { source: PositionPoint; target: PositionPoint } {
+    const useHandles = !!(this.sourceHandle || this.targetHandle);
+    if (useHandles) {
+      const source = this._cachedSource ?? this.getSourcePositionNodeOnly();
+      const target = this._cachedTarget ?? this.getTargetPositionNodeOnly();
+      return { source, target };
+    }
+    return {
+      source: this.getSourcePosition(),
+      target: this.getTargetPosition()
+    };
+  }
+
+  private getPositionCacheKey(): string {
+    const s = this.sourceNode;
+    const t = this.targetNode;
+    if (!s || !t) return '';
+    return [
+      this.id,
+      this.sourceHandle,
+      this.targetHandle,
+      s.position.x,
+      s.position.y,
+      t.position.x,
+      t.position.y,
+      // Include measured size so cached handle positions refresh when a node
+      // is (re)measured (e.g. content grows), not just when it moves.
+      s.measured?.width,
+      s.measured?.height,
+      t.measured?.width,
+      t.measured?.height
+    ].join('|');
+  }
+
+  /** True for the live connection-preview edge, which must always render. */
+  private get isPreview(): boolean {
+    return this.id === 'preview';
+  }
+
+  /**
+   * An endpoint is "known" once we have a real size for it — either a measured
+   * size or an explicit width. Until then the edge would have to guess (150x50)
+   * and visibly snap when the real size arrives, so we hold off rendering.
+   */
+  private endpointKnown(node?: Node): boolean {
+    if (!node) return false;
+    // Shape nodes derive their geometry from data.size, which is available
+    // immediately, so they never rely on the fallback guess.
+    if ((node as any).type === 'shape' || (node.data as any)?.size) return true;
+    return node.measured?.width != null || typeof node.width === 'number';
+  }
+
+  override updated(_changed: Map<string, unknown>) {
+    super.updated?.(_changed);
+    if (!this.sourceNode || !this.targetNode) return;
+    const useHandles = !!(this.sourceHandle || this.targetHandle);
+    if (!useHandles) return;
+
+    const key = this.getPositionCacheKey();
+    if (key !== this._lastPositionKey) {
+      this._lastPositionKey = key;
+      this._cachedSource = null;
+      this._cachedTarget = null;
+    }
+
+    if (this._cachedSource != null && this._cachedTarget != null) return;
+
+    if (this._handleRafId != null) return;
+    this._handleRafId = requestAnimationFrame(() => {
+      this._handleRafId = null;
+      this._cachedSource = this.getSourcePosition();
+      this._cachedTarget = this.getTargetPosition();
+      this.requestUpdate();
+    });
+  }
+
+  override disconnectedCallback(): void {
+    if (this._handleRafId != null) {
+      cancelAnimationFrame(this._handleRafId);
+      this._handleRafId = null;
+    }
+    super.disconnectedCallback?.();
+  }
+
   render() {
     if (!this.sourceNode || !this.targetNode) {
       return html``;
     }
 
-    // Get source and target positions (handles or node edges)
-    const source = this.getSourcePosition();
-    const target = this.getTargetPosition();
+    // Hold off the first paint until the edge can be drawn at its final
+    // position, so it never snaps into place on load. The preview edge is
+    // exempt because it must track the cursor every frame.
+    if (!this.isPreview) {
+      const useHandles = !!(this.sourceHandle || this.targetHandle);
+      const endpointsKnown =
+        this.endpointKnown(this.sourceNode) && this.endpointKnown(this.targetNode);
+      const handlesResolved =
+        !useHandles || (this._cachedSource != null && this._cachedTarget != null);
+      if (!endpointsKnown || !handlesResolved) {
+        return html``;
+      }
+    }
+
+    // Use node-only positions when handles exist (avoids DOM reads during render).
+    // Cached handle positions applied after rAF in updated().
+    const { source, target } = this.getPositionsForRender();
 
     // Get path based on edge type
     const [path, labelX, labelY, offsetX, offsetY] = this.getPathForType(source, target);
 
     const pathClasses = [
       'edge-path',
+      this.selectable && 'selectable',
       this.animated && 'animated',
       this.selected && 'selected'
     ].filter(Boolean).join(' ');
@@ -439,7 +585,9 @@ export class FlowEdge extends LitElement {
             stroke-dasharray="${dashAttr}"
             marker-start="${markerStart ?? ''}"
             marker-end="${markerEnd ?? ''}"
-            @click=${this.handleClick}
+            @click=${this.selectable ? this.handleClick : undefined}
+            @pointerenter=${this.handlePointerEnter}
+            @pointerleave=${this.handlePointerLeave}
           />
           ${this.label ? svg`
             <text 
@@ -460,6 +608,11 @@ export class FlowEdge extends LitElement {
 
   private handleClick(e: MouseEvent) {
     e.stopPropagation();
+    
+    // Don't handle selection if edge is not selectable
+    if (!this.selectable) {
+      return;
+    }
     
     // Toggle selection
     const newSelected = !this.selected;
@@ -485,6 +638,46 @@ export class FlowEdge extends LitElement {
       composed: true
     }));
   }
+
+  private emitHover(hovered: boolean) {
+    // Prevent redundant events when moving within the same stroke path
+    if (this.hovering === hovered) return;
+    this.hovering = hovered;
+
+    this.dispatchEvent(new CustomEvent('edge-hover', {
+      detail: {
+        edgeId: this.id,
+        hovered,
+        edge: {
+          id: this.id,
+          source: this.source,
+          target: this.target,
+          sourceHandle: this.sourceHandle,
+          targetHandle: this.targetHandle,
+          label: this.label,
+          animated: this.animated,
+          selected: this.selected,
+          type: this.type,
+          markerStart: this.markerStart,
+          markerEnd: this.markerEnd,
+          offset: this.offset,
+          pathStyle: this.pathStyle
+        } as any
+      },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  private handlePointerEnter = (e: PointerEvent) => {
+    e.stopPropagation();
+    this.emitHover(true);
+  };
+
+  private handlePointerLeave = (e: PointerEvent) => {
+    e.stopPropagation();
+    this.emitHover(false);
+  };
 }
 
 declare global {

@@ -7,6 +7,7 @@ import { LitElement, css } from 'lit';
 import { html, svg, unsafeStatic } from 'lit/static-html.js';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
+import { repeat } from 'lit/directives/repeat.js';
 import { FlowInstance } from '../core/flow-instance';
 import type { Node, Edge, Viewport, XYPosition, ConnectionStartParams, ConnectionEndParams } from '../core/types';
 import { getBezierPath, Position } from '../utils/geometry';
@@ -52,6 +53,7 @@ export class FlowCanvas extends LitElement {
       width: 100%;
       height: 100%;
       pointer-events: none;
+      z-index: 1;
     }
 
     .flow-edges-layer {
@@ -60,7 +62,8 @@ export class FlowCanvas extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-       pointer-events: none;
+      pointer-events: none;
+      z-index: 0;
     }
 
     .flow-labels-overlay {
@@ -382,6 +385,7 @@ export class FlowCanvas extends LitElement {
 
   instance: FlowInstance;
   private unsubscribe?: () => void;
+  private unsubscribeRenderComplete?: () => void;
 
   constructor() {
     super();
@@ -397,6 +401,24 @@ export class FlowCanvas extends LitElement {
         this.edges = state.edges;
         this.viewport = state.viewport;
         this.requestUpdate();
+      });
+
+      // Re-dispatch render-complete as a DOM event so consumers can listen on
+      // the element. Fires once each time a batch of data finishes rendering
+      // (all nodes measured, edges laid out).
+      this.unsubscribeRenderComplete = this.instance.onRenderComplete((state) => {
+        this.dispatchEvent(new CustomEvent('flow-render-complete', {
+          bubbles: true,
+          composed: true,
+          cancelable: false,
+          detail: {
+            instance: this.instance,
+            nodes: state.nodes,
+            edges: state.edges,
+            nodeCount: state.nodes.length,
+            edgeCount: state.edges.length
+          }
+        }));
       });
       container.addEventListener('mousemove', this.onMouseMove);
       window.addEventListener('mouseup', this.onMouseUp);
@@ -428,6 +450,7 @@ export class FlowCanvas extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe?.();
+    this.unsubscribeRenderComplete?.();
     this.instance.destroy();
     const container = this.renderRoot.querySelector('.flow-container') as HTMLElement | null;
       container?.removeEventListener('mousemove', this.onMouseMove);
@@ -478,13 +501,16 @@ export class FlowCanvas extends LitElement {
           class="flow-viewport" 
           style=${styleMap({ transform })}
         >
+          <div class="flow-nodes-layer">
+            ${repeat(this.nodes, node => node.id, node => this.renderNode(node))}
+          </div>
           <div class="flow-edges-layer">
-            ${this.edges.map(edge => {
+            ${repeat(this.edges, edge => edge.id, edge => {
               const sourceNode = this.nodes.find(n => n.id === edge.source);
               const targetNode = this.nodes.find(n => n.id === edge.target);
-              
+
               if (!sourceNode || !targetNode) return null;
-              
+
               return html`
                 <flow-edge 
                   .id=${edge.id}
@@ -495,6 +521,7 @@ export class FlowCanvas extends LitElement {
                   .sourceNode=${sourceNode}
                   .targetNode=${targetNode}
                   .animated=${edge.animated || false}
+                  .selectable=${edge.selectable !== undefined ? edge.selectable : true}
                   .label=${(edge as any).label || ''}
                   .type=${edge.type || 'default'}
                   .markerStart=${edge.markerStart}
@@ -506,11 +533,8 @@ export class FlowCanvas extends LitElement {
             })}
             ${this.renderPreviewEdge()}
           </div>
-          <div class="flow-nodes-layer">
-            ${this.nodes.map(node => this.renderNode(node))}
-          </div>
           <div class="flow-labels-overlay">
-            ${this.edges.map(edge => {
+            ${repeat(this.edges, edge => edge.id, edge => {
               const labelWidget = (edge.data && (edge.data as any).labelWidget) as string | undefined;
               const labelData = (edge.data && (edge.data as any).labelData) as any | undefined;
               const labelHtml = (edge.data && (edge.data as any).labelHtml) as string | undefined;
@@ -529,7 +553,7 @@ export class FlowCanvas extends LitElement {
                 ? html`<div class="edge-label" style="${style}" .innerHTML=${labelHtml}></div>`
                 : html`<div class="edge-label" style="${style}">${labelText}</div>`;
             })}
-            ${this.edges.map(edge => {
+            ${repeat(this.edges, edge => edge.id, edge => {
               const startWidget = (edge.data && (edge.data as any).startLabelWidget) as string | undefined;
               const startLabelData = (edge.data && (edge.data as any).startLabelData) as any | undefined;
               const startHtml = (edge.data && (edge.data as any).startLabelHtml) as string | undefined;
@@ -546,7 +570,7 @@ export class FlowCanvas extends LitElement {
                 ? html`<div class="edge-label" style="${style}" .innerHTML=${startHtml}></div>`
                 : html`<div class="edge-label" style="${style}">${startText}</div>`;
             })}
-            ${this.edges.map(edge => {
+            ${repeat(this.edges, edge => edge.id, edge => {
               const endWidget = (edge.data && (edge.data as any).endLabelWidget) as string | undefined;
               const endLabelData = (edge.data && (edge.data as any).endLabelData) as any | undefined;
               const endHtml = (edge.data && (edge.data as any).endLabelHtml) as string | undefined;
@@ -809,6 +833,7 @@ export class FlowCanvas extends LitElement {
           .sourceNode=${{ ...nodeFrom, position: nodeFrom.position } as any}
           .targetNode=${{ id: '__preview__', position: { x: preview.x, y: preview.y }, width: 1, height: 1, data: {} } as any}
           .animated=${true}
+          .selectable=${false}
           .label=${''}
         ></flow-edge>
       `;
@@ -824,6 +849,7 @@ export class FlowCanvas extends LitElement {
           .targetHandle=${this.connection.to?.handleId}
           .targetNode=${{ ...nodeTo, position: nodeTo.position } as any}
           .animated=${true}
+          .selectable=${false}
           .label=${''}
         ></flow-edge>
       `;
