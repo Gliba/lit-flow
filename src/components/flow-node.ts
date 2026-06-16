@@ -25,6 +25,13 @@ export class FlowNode extends LitElement {
       transform-origin: 0 0;
       will-change: transform;
       pointer-events: auto;
+      /* Hidden until first measured + positioned, so the node never paints
+         at its fallback size/origin before snapping into place. */
+      visibility: hidden;
+    }
+
+    :host([data-measured]) {
+      visibility: visible;
     }
 
     :host([dragging]) {
@@ -97,6 +104,10 @@ export class FlowNode extends LitElement {
       this.addEventListener('resize-end', this.handleResizeEnd as EventListener);
     }
     this.updateMeasuredSize();
+    // Reveal once measured and positioned (transform applied in updated()).
+    if (!this.hasAttribute('data-measured')) {
+      this.setAttribute('data-measured', '');
+    }
   }
 
   disconnectedCallback() {

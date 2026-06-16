@@ -46,6 +46,7 @@ export type Edge<
   type?: EdgeType;  // Edge type: 'default', 'straight', 'step', 'smoothstep', 'simplebezier'
   offset?: number;  // Offset parameter for smoothstep and step edge types
   pathStyle?: Partial<CSSStyleDeclaration> | string;  // Custom CSS styles for the edge path
+  selectable?: boolean;  // Whether the edge can be selected (defaults to true)
 };
 
 export type InternalNode<T extends NodeBase = NodeBase> = InternalNodeBase<T>;
@@ -70,7 +71,10 @@ export interface ConnectionEndParams {
 export interface FlowOptions {
   nodes?: Node[];
   edges?: Edge[];
+  /** @deprecated Use `fitViewOnInit`. Kept as an alias for backwards compatibility. */
   fitView?: boolean;
+  /** When true, fit the viewport to all nodes once on first load (after they're measured). Off by default. */
+  fitViewOnInit?: boolean;
   minZoom?: number;
   maxZoom?: number;
   defaultZoom?: number;
@@ -79,6 +83,7 @@ export interface FlowOptions {
   nodesDraggable?: boolean;
   nodesConnectable?: boolean;
   elementsSelectable?: boolean;
+  zoomOnDoubleClick?: boolean;  // Enable/disable zoom on double click (defaults to false)
 }
 
 export interface FlowState {
@@ -124,6 +129,15 @@ export interface EdgeSelectEventDetail {
 
 export interface NodeSelectEvent extends CustomEvent<NodeSelectEventDetail> {}
 export interface EdgeSelectEvent extends CustomEvent<EdgeSelectEventDetail> {}
+
+// Hover event types
+export interface EdgeHoverEventDetail {
+  edgeId: string;
+  hovered: boolean;
+  edge: Edge;
+}
+
+export interface EdgeHoverEvent extends CustomEvent<EdgeHoverEventDetail> {}
 
 // Handle event types
 export interface HandleStartEventDetail {

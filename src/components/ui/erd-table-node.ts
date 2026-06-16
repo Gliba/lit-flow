@@ -135,16 +135,21 @@ export class ERDTableNode extends FlowNode {
   private appliedInitialSize = false;
 
   firstUpdated() {
-    // Apply initial size before base measures, so measured size reflects it
+    // Apply initial size before base measures, so measured size reflects it.
+    //
+    // Important: for height we use `min-height` (not `height`) so the node can
+    // still grow with content (e.g. when fields increase). If you want a fixed
+    // height with scrolling, resize the node (or set an explicit height style).
     const data = this.data as ERDTableData | undefined;
     const w = data?.size?.width;
     const h = data?.size?.height;
     if ((typeof w === 'number' && w > 0) || (typeof h === 'number' && h > 0)) {
       if (typeof w === 'number' && w > 0) this.style.width = `${w}px`;
-      if (typeof h === 'number' && h > 0) this.style.height = `${h}px`;
+      if (typeof h === 'number' && h > 0) this.style.minHeight = `${h}px`;
       if (this.instance) {
         this.instance.updateNode(this.id, {
           width: typeof w === 'number' && w > 0 ? w : (this as any).width,
+          // Store an initial height hint, but allow the DOM to grow beyond it.
           height: typeof h === 'number' && h > 0 ? h : (this as any).height,
         });
       }
