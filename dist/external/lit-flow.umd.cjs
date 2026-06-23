@@ -4639,9 +4639,33 @@
        * }
        * ```
        */
+      /**
+       * Await the `updateComplete` of any nested Lit elements inside this node so
+       * a measurement taken afterwards reflects their final rendered size.
+       */
+      async waitForNestedUpdates() {
+        const roots = [];
+        if (this.shadowRoot) roots.push(this.shadowRoot);
+        roots.push(this);
+        const pending = [];
+        for (const root of roots) {
+          root.querySelectorAll("*").forEach((el) => {
+            const uc = el.updateComplete;
+            if (uc && typeof uc.then === "function") pending.push(uc);
+          });
+        }
+        if (pending.length) {
+          try {
+            await Promise.all(pending);
+          } catch {
+          }
+        }
+      }
       async notifyHandlesUpdated(options) {
         const { handleIds, updateDimensions = true } = options || {};
         await this.updateComplete;
+        await this.waitForNestedUpdates();
+        await new Promise((resolve) => requestAnimationFrame(() => resolve()));
         await new Promise((resolve) => requestAnimationFrame(() => resolve()));
         await new Promise((resolve) => setTimeout(resolve, 0));
         if (this.instance && this.id) {
@@ -4714,11 +4738,25 @@
     ], NodeMixinClass.prototype, "height");
     return NodeMixinClass;
   };
+  const LIT_FLOW_VERSION = "0.4.16";
+  const LIT_FLOW_BUILD = "smooth-load+fitview+render-complete";
+  try {
+    console.info(
+      `%c lit-flow %c v${LIT_FLOW_VERSION} %c ${LIT_FLOW_BUILD} `,
+      "background:#1a73e8;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px;font-weight:600",
+      "background:#111;color:#fff;padding:2px 4px",
+      "background:#e8f0fe;color:#1a73e8;border-radius:0 3px 3px 0;padding:2px 4px",
+      "\nfeatures: measurement gate · batched notify · keyed repeat · robust fitView · fitViewOnInit · flow-render-complete · nested-aware notifyHandlesUpdated"
+    );
+  } catch {
+  }
   Object.defineProperty(exports2, "Position", {
     enumerable: true,
     get: () => system.Position
   });
   exports2.FlowInstance = FlowInstance;
+  exports2.LIT_FLOW_BUILD = LIT_FLOW_BUILD;
+  exports2.LIT_FLOW_VERSION = LIT_FLOW_VERSION;
   exports2.NodeMixin = NodeMixin;
   exports2.ShapeRegistry = ShapeRegistry;
   exports2.createStore = createStore;

@@ -73,3 +73,24 @@ export {
 // Import base styles
 import './styles/base.css';
 
+/**
+ * Build marker. Logged once when the library loads so you can confirm in the
+ * browser console exactly which build is deployed. Bump `LIT_FLOW_VERSION` /
+ * `LIT_FLOW_BUILD` whenever you ship a new vendored copy.
+ */
+export const LIT_FLOW_VERSION = '0.4.16';
+export const LIT_FLOW_BUILD = 'smooth-load+fitview+render-complete';
+
+try {
+  // eslint-disable-next-line no-console
+  console.info(
+    `%c lit-flow %c v${LIT_FLOW_VERSION} %c ${LIT_FLOW_BUILD} `,
+    'background:#1a73e8;color:#fff;border-radius:3px 0 0 3px;padding:2px 4px;font-weight:600',
+    'background:#111;color:#fff;padding:2px 4px',
+    'background:#e8f0fe;color:#1a73e8;border-radius:0 3px 3px 0;padding:2px 4px',
+    '\nfeatures: measurement gate · batched notify · keyed repeat · robust fitView · fitViewOnInit · flow-render-complete · nested-aware notifyHandlesUpdated'
+  );
+} catch {
+  /* no console available */
+}
+

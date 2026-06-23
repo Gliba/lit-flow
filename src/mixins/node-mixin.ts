@@ -996,6 +996,27 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
      * }
      * ```
      */
+    /**
+     * Await the `updateComplete` of any nested Lit elements inside this node so
+     * a measurement taken afterwards reflects their final rendered size.
+     */
+    private async waitForNestedUpdates(): Promise<void> {
+      const roots: ParentNode[] = [];
+      if (this.shadowRoot) roots.push(this.shadowRoot);
+      roots.push(this);
+
+      const pending: Promise<unknown>[] = [];
+      for (const root of roots) {
+        root.querySelectorAll('*').forEach(el => {
+          const uc = (el as any).updateComplete;
+          if (uc && typeof uc.then === 'function') pending.push(uc);
+        });
+      }
+      if (pending.length) {
+        try { await Promise.all(pending); } catch { /* ignore child render errors */ }
+      }
+    }
+
     protected async notifyHandlesUpdated(options?: {
       /** Optional list of handle IDs that were added/updated */
       handleIds?: string[];
@@ -1003,15 +1024,22 @@ export const NodeMixin = <T extends Constructor<LitElement>>(superClass: T) => {
       updateDimensions?: boolean;
     }) {
       const { handleIds, updateDimensions = true } = options || {};
-      
+
       // Wait for any pending DOM updates
       await this.updateComplete;
-      
-      // Ensure layout is committed so handle DOM has correct rects
+
+      // Content rendered imperatively (e.g. table rows) often contains nested
+      // custom elements that do their own async first render. If we measure
+      // before those settle, we capture a too-small height. Wait for them.
+      await this.waitForNestedUpdates();
+
+      // Ensure layout is committed so handle DOM has correct rects. Two frames:
+      // the first lets the above renders flush, the second lets layout settle.
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
       // Extra tick for cases where handles are rendered via imperative `render()`
       await new Promise(resolve => setTimeout(resolve, 0));
-      
+
       if (this.instance && this.id) {
         // Update measurements to trigger edge/handle recalculation.
         // We prefer updating `measured` (not fixed width/height) so nodes can stay auto-sized.

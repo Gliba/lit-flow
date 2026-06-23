@@ -548,6 +548,15 @@ export declare function isPointInRect(point: XYPosition, rect: {
     height: number;
 }): boolean;
 
+export declare const LIT_FLOW_BUILD = "smooth-load+fitview+render-complete";
+
+/**
+ * Build marker. Logged once when the library loads so you can confirm in the
+ * browser console exactly which build is deployed. Bump `LIT_FLOW_VERSION` /
+ * `LIT_FLOW_BUILD` whenever you ship a new vendored copy.
+ */
+export declare const LIT_FLOW_VERSION = "0.4.16";
+
 declare type MarkerBuiltin = 'Arrow' | 'ArrowClosed';
 
 declare type MarkerOrient = 'auto' | 'auto-start-reverse';
